@@ -1,0 +1,26 @@
+import { z } from "zod";
+import { updateProfile } from "@/src/server/auth/identity";
+import { getCurrentUser } from "@/src/server/auth/session";
+import { errorResponse } from "@/src/server/http";
+
+export const runtime = "nodejs";
+
+const profileSchema = z.object({
+  nickname: z.string().trim().min(1, "请输入昵称").max(80, "昵称过长"),
+  defaultPrivacyLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+});
+
+export async function PUT(request: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return Response.json({ error: "未登录" }, { status: 401 });
+
+    const parsed = profileSchema.safeParse(await request.json());
+    if (!parsed.success) return Response.json({ error: "资料信息无效" }, { status: 400 });
+
+    const updated = await updateProfile(user.id, parsed.data);
+    return Response.json({ user: updated });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

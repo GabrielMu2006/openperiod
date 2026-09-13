@@ -68,7 +68,7 @@ export function GroupsDashboard() {
 
   return (
     <main className="groups-page">
-      <header className="simple-header"><a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a><a href="/">返回共同空闲</a></header>
+      <header className="simple-header"><a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a><nav><a href="/">共同空闲</a><a href="/schedule">我的课表</a><a href="/settings">设置</a></nav></header>
       <div className="groups-content">
         <div className="groups-heading"><div><p className="eyebrow">GROUPS</p><h1>群组</h1><p>和熟悉的人共享忙闲状态，课程细节由你决定。</p></div><div><a href="/join">输入邀请码</a><a className="primary-action" href="/groups/new">创建群组</a></div></div>
         {error && <div className="page-error" role="alert">{error}</div>}

@@ -13,7 +13,7 @@ const navItems = [
   { label: "共同空闲", href: "/", icon: "▦" },
   { label: "我的课表", href: "/schedule", icon: "▤" },
   { label: "群组", href: "/groups", icon: "◎" },
-  { label: "设置", href: "#", icon: "◇" },
+  { label: "设置", href: "/settings", icon: "◇" },
 ];
 
 interface GroupDTO {

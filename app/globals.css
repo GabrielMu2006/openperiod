@@ -134,6 +134,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .empty-actions a, .groups-heading > div:last-child a, .form-actions a { min-height: 42px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 10px; color: var(--text-secondary); background: var(--surface); font-size: 14px; font-weight: 650; text-decoration: none; }
 .primary-action, .empty-actions .primary-action, .groups-heading > div:last-child .primary-action { color: white; border-color: var(--pku-red); background: var(--pku-red); }
 .page-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; padding: 13px 15px; border: 1px solid #efc4c0; border-radius: 10px; color: var(--danger); background: #feeceb; font-size: 14px; }
+.page-success { margin-bottom: 16px; padding: 13px 15px; border: 1px solid var(--free-border); border-radius: 10px; color: var(--free); background: var(--free-bg); font-size: 14px; font-weight: 600; }
 .page-error small { color: #8d514c; }
 .loading-panel { min-height: 220px; padding: 30px; }
 .loading-line { width: 55%; height: 17px; border-radius: 6px; background: var(--busy-bg); animation: loading-pulse 1s infinite alternate; }
@@ -505,4 +506,57 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .editor-three label:first-child { grid-column: 1 / -1; }
   .schedule-editor > footer { padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
   .danger-link { padding-inline: 0 !important; }
+}
+
+/* Settings */
+.settings-page { min-height: 100vh; background: var(--canvas); }
+.settings-content { width: min(680px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 90px; }
+.settings-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
+.settings-heading .eyebrow { margin: 0; }
+.settings-heading h1 { margin: 6px 0 0; font-size: 32px; }
+.settings-heading p:not(.eyebrow) { margin: 8px 0 0; color: var(--text-secondary); font-size: 14px; }
+.settings-card { padding: 24px 26px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-card); margin-bottom: 18px; }
+.settings-card h2 { margin: 0 0 16px; font-size: 17px; }
+.settings-field { display: grid; gap: 7px; margin-bottom: 16px; font-size: 14px; font-weight: 650; }
+.settings-field:last-child { margin-bottom: 0; }
+.settings-field input {
+  min-height: 44px; padding: 0 13px; border: 1px solid var(--border-strong); border-radius: 10px;
+  color: var(--text-primary); background: var(--surface); font: inherit; font-weight: 500;
+}
+.settings-field input:focus { outline: 2px solid rgb(148 7 10 / 22%); border-color: var(--pku-red); }
+.settings-static { min-height: 44px; display: flex; align-items: center; padding: 0 13px; border: 1px dashed var(--border-strong); border-radius: 10px; color: var(--text-secondary); font-weight: 500; }
+.settings-note { margin: 2px 0 0; color: var(--text-tertiary); font-size: 13px; font-weight: 450; line-height: 1.6; }
+.privacy-options { display: grid; gap: 10px; }
+.privacy-option { display: flex; align-items: flex-start; gap: 11px; padding: 13px 14px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
+.privacy-option:hover { background: var(--surface-hover); }
+.privacy-option.selected { border-color: var(--pku-red); background: var(--brand-050); }
+.privacy-option input { margin: 3px 0 0; accent-color: var(--pku-red); }
+.privacy-option span { display: grid; gap: 3px; }
+.privacy-option strong { font-size: 14px; }
+.privacy-option small { color: var(--text-secondary); font-size: 13px; font-weight: 450; line-height: 1.55; }
+.semester-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; }
+.semester-facts > div { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-warm); }
+.semester-facts dt { color: var(--text-tertiary); font-size: 12px; }
+.semester-facts dd { margin: 4px 0 0; font-size: 15px; font-weight: 650; }
+.logout-button {
+  min-height: 42px; padding: 0 18px; border: 1px solid #efc4c0; border-radius: 10px;
+  color: var(--danger); background: #feeceb; font-size: 14px; font-weight: 650; cursor: pointer;
+}
+.logout-button:hover:not(:disabled) { background: #fddcdc; }
+.logout-button:disabled { opacity: .6; cursor: wait; }
+.settings-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding-top: 6px; }
+.settings-saved { color: var(--free); font-size: 13px; font-weight: 650; }
+.settings-save-error { color: var(--danger); font-size: 13px; font-weight: 600; }
+.save-button { min-height: 44px; padding: 0 22px; border: 0; border-radius: 10px; color: white; background: var(--pku-red); font-size: 14px; font-weight: 700; cursor: pointer; }
+.save-button:hover:not(:disabled) { background: var(--brand-800); }
+.save-button:disabled { opacity: .6; cursor: wait; }
+
+@media (max-width: 639px) {
+  .settings-content { width: 100%; padding: 27px 0 60px; }
+  .settings-heading { padding: 0 16px; }
+  .settings-heading h1 { font-size: 26px; }
+  .settings-card { margin: 0 16px 14px; padding: 20px 16px; }
+  .semester-facts { grid-template-columns: 1fr; }
+  .settings-actions { padding: 0 16px; }
+  .save-button { flex: 1; }
 }

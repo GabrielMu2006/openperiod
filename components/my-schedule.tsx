@@ -73,6 +73,13 @@ export function MySchedule() {
   const [week, setWeek] = useState<number | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("imported")) return;
+    setNotice("课表导入成功，已替换当前学期的课表。");
+    window.history.replaceState(null, "", "/schedule");
+  }, []);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const query = week === null ? "" : `?week=${week}`;
@@ -106,10 +113,11 @@ export function MySchedule() {
 
   return (
     <div className="schedule-shell">
-      <header className="simple-header"><a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a><nav><a href="/">共同空闲</a><a href="/groups">群组</a></nav></header>
+      <header className="simple-header"><a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a><nav><a href="/">共同空闲</a><a href="/groups">群组</a><a href="/settings">设置</a></nav></header>
       <main className="schedule-page">
         <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester} · 北京大学` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
         {error && <div className="page-error" role="alert">{error}</div>}
+        {notice && <div className="page-success" role="status">{notice}</div>}
         {schedule && week !== null ? <>
           <div className="my-week-switcher"><button type="button" aria-label="上一周" disabled={week <= 1} onClick={() => setWeek((value) => Math.max(1, (value ?? 1) - 1))}>‹</button><strong>第 {week} 周 {week === schedule.semester.currentWeek && <em>本周</em>}</strong><button type="button" aria-label="下一周" disabled={week >= schedule.semester.weekCount} onClick={() => setWeek((value) => Math.min(schedule.semester.weekCount, (value ?? 1) + 1))}>›</button></div>
           {schedule.courses.length === 0 && schedule.busyBlocks.length === 0 ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，或手动添加第一门课程。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button></div></section> : <div className="my-grid-scroller"><div className="my-timetable">
