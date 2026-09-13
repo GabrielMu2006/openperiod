@@ -28,6 +28,39 @@ describe("PkuExcelImporter", () => {
     expect(payload.courses[0].meetings[1]).toMatchObject({ weekday: "wednesday", startPeriod: 3, endPeriod: 4 });
   });
 
+  it("parses the PKU jw-system grid export with exam-note cells", () => {
+    const cell = (name: string, location: string, exam: string) => `${name}(${location})(备注：) ${exam}`;
+    const result = parseWorkbookSheets([{ sheet: "new sheet", data: [
+      ["节数", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"],
+      ["第一节", cell("可视计算与交互概论", "理教108", "每周考试方式：堂考、论文、或统一时间考试"), "", "", "", "", "", ""],
+      ["第二节", cell("可视计算与交互概论", "理教108", "每周考试方式：堂考、论文、或统一时间考试"), "", "", "", "", "", ""],
+      ["第三节", "", "", "", "", "", "", ""],
+      ["第四节", "", "", "", "", "", "", ""],
+      ["第五节", "计算机系统导论(理教402)(备注：小班课上课时间：每周三10-11节课。请选大班的同学空出小班上课时间，小班会手动添加，冲突选课无法添加。) 每周考试时间：20261228下午；", "", "", "", "", "", ""],
+      ["第六节", "计算机系统导论(理教402)(备注：小班课上课时间：每周三10-11节课。请选大班的同学空出小班上课时间，小班会手动添加，冲突选课无法添加。) 每周考试时间：20261228下午；", "", "", "", "", "", ""],
+      ["第七节", "", "", "", "", "", "", ""],
+      ["第八节", "", "", "", "", "", "", ""],
+      ["第九节", "", "", "", "", "", "", ""],
+      ["第十节", "", cell("计算机视觉", "二教101", "双周考试方式：堂考、论文、或统一时间考试"), "", "", "", "", ""],
+      ["第十一节", "", cell("计算机视觉", "二教101", "双周考试方式：堂考、论文、或统一时间考试"), "", "", "", "", ""],
+    ] }]);
+
+    expect(result.format).toBe("GRID");
+    expect(result.stats.warningCount).toBe(0);
+    const byName = Object.fromEntries(result.courses.map((course) => [course.name, course]));
+
+    expect(byName["可视计算与交互概论"]).toMatchObject({ location: "理教108" });
+    expect(byName["可视计算与交互概论"].meetings).toHaveLength(1);
+    expect(byName["可视计算与交互概论"].meetings[0]).toMatchObject({ weekday: "monday", startPeriod: 1, endPeriod: 2 });
+
+    // 备注里的“每周三10-11节课”和考试日期不能污染周次
+    expect(byName["计算机系统导论"].meetings[0]).toMatchObject({ startPeriod: 5, endPeriod: 6 });
+    expect(byName["计算机系统导论"].meetings[0].weeks).toEqual(Array.from({ length: 16 }, (_, index) => index + 1));
+
+    expect(byName["计算机视觉"].meetings[0]).toMatchObject({ weekday: "tuesday", startPeriod: 10, endPeriod: 11 });
+    expect(byName["计算机视觉"].meetings[0].weeks).toEqual([2, 4, 6, 8, 10, 12, 14, 16]);
+  });
+
   it("explains an unfilled template instead of rejecting the format", () => {
     expect(() => parseWorkbookSheets([{ sheet: "课程", data: [
       ["Course", "Teacher", "Location", "Weekday", "StartPeriod", "EndPeriod", "Weeks"],

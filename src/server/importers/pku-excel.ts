@@ -9,7 +9,7 @@ import type {
   TimetableImporter,
 } from "@/src/domain/import";
 import type { Weekday } from "@/src/domain/schedule";
-import { parseWeekRule } from "@/src/domain/week-rules";
+import { parseWeekRule, type WeekParseResult } from "@/src/domain/week-rules";
 
 type CellValue = string | number | boolean | Date | null;
 type SheetData = { sheet: string; data: CellValue[][] };
@@ -147,7 +147,7 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
 }
 
 function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findGridHeader>>) {
-  const courses: ImportCourseDraft[] = [];
+  const coursesByKey = new Map<string, ImportCourseDraft>();
   const warnings: ImportWarning[] = [];
   const firstDayColumn = Math.min(...header.columns.keys());
   for (let rowIndex = header.rowIndex + 1; rowIndex < sheet.data.length; rowIndex += 1) {
@@ -158,16 +158,63 @@ function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof 
     for (const [column, weekday] of header.columns) {
       const text = cellText(row[column]);
       if (!text) continue;
-      const lines = text.split(/[\r\n]+/).map((line) => line.trim()).filter(Boolean);
-      const name = lines[0];
-      const weekValue = lines.find((line) => /周|单|双|ODD|EVEN|\d+\s*[-–—~～]\s*\d+/i.test(line)) ?? "";
-      const weekResult = parseWeekRule(weekValue);
       const cellSource = source(sheet, rowIndex, column);
-      if (!weekResult.recognized) warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${name}”的周次，暂按 1–16 周处理`, source: cellSource });
-      courses.push({ id: randomUUID(), name, meetings: [{ id: randomUUID(), weekday, startPeriod: period[0], endPeriod: period[1], weeks: weekResult.weeks, source: cellSource }] });
+      for (const entry of parseGridCell(text)) {
+        const weeks = resolveGridWeeks(entry);
+        if (!weeks.recognized) warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${entry.name}”的周次，暂按 1–16 周处理`, source: cellSource });
+        const key = [entry.name, entry.location ?? ""].join("\u0000");
+        const course = coursesByKey.get(key) ?? { id: randomUUID(), name: entry.name, location: entry.location, meetings: [] };
+        const extendable = course.meetings.find((meeting) =>
+          meeting.weekday === weekday && meeting.endPeriod === period[0] - 1 && meeting.weeks.join(",") === weeks.weeks.join(","));
+        if (extendable) {
+          extendable.endPeriod = period[1];
+        } else {
+          course.meetings.push({ id: randomUUID(), weekday, startPeriod: period[0], endPeriod: period[1], weeks: weeks.weeks, source: cellSource });
+        }
+        coursesByKey.set(key, course);
+      }
     }
   }
-  return finalize("GRID", courses, warnings);
+  return finalize("GRID", [...coursesByKey.values()], warnings);
+}
+
+// 北大教务系统导出的网格单元格形如：
+//   "课程名(地点)(备注：…) 每周考试方式：…" — 周次信号是「每周/单周/双周考试」
+// 其他网格格式则常见「课程名 换行 1-16周」或整格即周次注记。
+const PKU_EXAM_WEEK_PATTERN = /(每周|单周|双周)\s*考试/;
+const WEEK_ANNOTATION_PATTERN = /^(?:第)?[\d\s,，、\-–—~～/]+周?$/;
+const FIRST_PAREN_PATTERN = /[（(]([^（）()]*)[)）]/;
+
+interface GridCellEntry {
+  name: string;
+  location?: string;
+  weekText: string;
+}
+
+function parseGridCell(text: string): GridCellEntry[] {
+  const entries: GridCellEntry[] = [];
+  for (const rawLine of text.split(/[\r\n]+/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (entries.length && (WEEK_ANNOTATION_PATTERN.test(line) || /^(每周|单周|双周)$/.test(line))) {
+      entries[entries.length - 1].weekText = line;
+      continue;
+    }
+    const paren = line.match(FIRST_PAREN_PATTERN);
+    const name = (paren?.index !== undefined ? line.slice(0, paren.index) : line).replace(/[\s,，、;；]+$/, "").trim();
+    entries.push({ name: name || line, location: paren?.[1]?.trim() || undefined, weekText: line });
+  }
+  return entries;
+}
+
+function resolveGridWeeks(entry: GridCellEntry): WeekParseResult {
+  const pku = entry.weekText.match(PKU_EXAM_WEEK_PATTERN);
+  if (pku) {
+    return pku[1] === "每周"
+      ? { weeks: Array.from({ length: 16 }, (_, index) => index + 1), recognized: true }
+      : parseWeekRule(pku[1]);
+  }
+  return parseWeekRule(entry.weekText);
 }
 
 export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
