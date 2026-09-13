@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import readExcelFile from "read-excel-file/node";
+import * as SheetJS from "xlsx";
 import type {
   DetectionResult,
   ImportCourseDraft,
@@ -191,8 +192,24 @@ export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
   throw new Error("当前版本仅支持北京大学课表或课隙标准模板");
 }
 
+// OLE2 复合文档魔数：Excel 97-2003（.xls）文件头
+const LEGACY_XLS_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
+function isLegacyBinaryExcel(file: ArrayBuffer) {
+  if (file.byteLength < LEGACY_XLS_MAGIC.length) return false;
+  return LEGACY_XLS_MAGIC.compare(Buffer.from(file, 0, LEGACY_XLS_MAGIC.length)) === 0;
+}
+
+function readLegacyXls(file: ArrayBuffer): SheetData[] {
+  const workbook = SheetJS.read(Buffer.from(file), { type: "buffer" });
+  return workbook.SheetNames.map((name) => ({
+    sheet: name,
+    data: SheetJS.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: null }) as CellValue[][],
+  }));
+}
+
 async function readSheets(file: ArrayBuffer): Promise<SheetData[]> {
-  const sheets = await readExcelFile(Buffer.from(file));
+  const sheets = isLegacyBinaryExcel(file) ? readLegacyXls(file) : await readExcelFile(Buffer.from(file));
   if (sheets.length > 10 || sheets.some((sheet) => sheet.data.length > 5000)) throw new Error("Excel 内容过大，无法安全解析");
   return sheets as SheetData[];
 }

@@ -18,7 +18,8 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new HttpError(400, "请选择 Excel 文件");
-    if (!file.name.toLowerCase().endsWith(".xlsx")) throw new HttpError(415, "当前正式支持 .xlsx 文件");
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) throw new HttpError(415, "当前支持 .xlsx / .xls 文件");
     if (file.size > MAX_FILE_SIZE) throw new HttpError(413, "Excel 文件不能超过 5MB");
 
     const buffer = await file.arrayBuffer();

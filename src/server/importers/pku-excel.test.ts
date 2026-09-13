@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import * as SheetJS from "xlsx";
 import { parseWorkbookSheets, PkuExcelImporter } from "./pku-excel";
 
 describe("PkuExcelImporter", () => {
@@ -7,6 +8,24 @@ describe("PkuExcelImporter", () => {
     const file = await readFile("public/OpenPeriod-PKU-Template.xlsx");
     const input = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     await expect(new PkuExcelImporter().detect(input)).resolves.toMatchObject({ supported: true, format: "ROW" });
+  });
+
+  it("parses legacy .xls (BIFF8) workbooks", async () => {
+    const workbook = SheetJS.utils.book_new();
+    SheetJS.utils.book_append_sheet(workbook, SheetJS.utils.aoa_to_sheet([
+      ["Course", "Teacher", "Location", "Weekday", "StartPeriod", "EndPeriod", "Weeks"],
+      ["古代汉语", "王教授", "一教101", "周一", 1, 2, "1-16"],
+      ["古代汉语", "王教授", "一教101", "周三", 3, 4, "单周"],
+    ]), "课程");
+    const buffer = SheetJS.write(workbook, { bookType: "biff8", type: "buffer" }) as Buffer;
+    const input = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+
+    const importer = new PkuExcelImporter();
+    await expect(importer.detect(input)).resolves.toMatchObject({ supported: true, format: "ROW" });
+    const payload = await importer.parse(input);
+    expect(payload.stats).toEqual({ courseCount: 1, meetingCount: 2, warningCount: 0 });
+    expect(payload.courses[0].name).toBe("古代汉语");
+    expect(payload.courses[0].meetings[1]).toMatchObject({ weekday: "wednesday", startPeriod: 3, endPeriod: 4 });
   });
 
   it("explains an unfilled template instead of rejecting the format", () => {

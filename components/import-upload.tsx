@@ -16,7 +16,8 @@ export function ImportUpload() {
   function choose(candidate?: File) {
     setError("");
     if (!candidate) return;
-    if (!candidate.name.toLowerCase().endsWith(".xlsx")) return setError("当前正式支持 .xlsx 文件");
+    const name = candidate.name.toLowerCase();
+    if (!name.endsWith(".xlsx") && !name.endsWith(".xls")) return setError("当前支持 .xlsx / .xls 文件");
     if (candidate.size > MAX_FILE_SIZE) return setError("Excel 文件不能超过 5MB");
     setFile(candidate);
   }
@@ -54,12 +55,12 @@ export function ImportUpload() {
         onDragLeave={() => setDragging(false)}
         onDrop={drop}
       >
-        <input ref={inputRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => choose(event.target.files?.[0])} hidden />
+        <input ref={inputRef} type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => choose(event.target.files?.[0])} hidden />
         <span className="upload-icon" aria-hidden="true">⇧</span>
         <h2>{file ? file.name : "拖入 PKU 课表 Excel"}</h2>
         <p>{file ? `${(file.size / 1024).toFixed(0)} KB · 可以开始解析` : "文件只用于解析，原始 Excel 不会被永久保存。"}</p>
         <button type="button" onClick={() => inputRef.current?.click()}>{file ? "重新选择" : "选择 Excel 文件"}</button>
-        <small>支持 .xlsx，最大 5MB</small>
+        <small>支持 .xlsx / .xls，最大 5MB</small>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="upload-actions"><a href="/OpenPeriod-PKU-Template.xlsx" download>下载课隙标准模板</a><button type="button" disabled={!file || pending} onClick={upload}>{pending ? "正在解析…" : "解析并预览"}</button></div>

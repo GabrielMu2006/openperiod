@@ -14,12 +14,13 @@
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
-    "read-excel-file": "9.3.10",
     "next": "16.3.5",
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "read-excel-file": "9.3.10",
     "server-only": "0.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "4.6.4"
   },
   "devDependencies": {
