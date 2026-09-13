@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: openperiod
+      POSTGRES_USER: openperiod
+      POSTGRES_PASSWORD: openperiod
+    ports:
+      - "5432:5432"
+    volumes:
+      - openperiod-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openperiod -d openperiod"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  openperiod-postgres:
