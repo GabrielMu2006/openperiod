@@ -9,6 +9,13 @@ describe("PkuExcelImporter", () => {
     await expect(new PkuExcelImporter().detect(input)).resolves.toMatchObject({ supported: true, format: "ROW" });
   });
 
+  it("explains an unfilled template instead of rejecting the format", () => {
+    expect(() => parseWorkbookSheets([{ sheet: "课程", data: [
+      ["Course", "Teacher", "Location", "Weekday", "StartPeriod", "EndPeriod", "Weeks"],
+      [null, null, null, null, null, null, null],
+    ] }])).toThrow("没有读到课程行");
+  });
+
   it("normalizes repeated course rows into meetings", () => {
     const result = parseWorkbookSheets([{ sheet: "课程", data: [
       ["Course", "Teacher", "Location", "Weekday", "StartPeriod", "EndPeriod", "Weeks"],

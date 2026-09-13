@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getCurrentUser } from "@/src/server/auth/session";
 import { errorResponse } from "@/src/server/http";
 import { deleteBusyBlock, updateBusyBlock } from "@/src/server/schedule/data";
@@ -30,4 +31,3 @@ export async function DELETE(_request: Request, context: { params: Promise<{ bus
     return errorResponse(error);
   }
 }
-import { z } from "zod";

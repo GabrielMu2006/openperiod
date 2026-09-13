@@ -54,7 +54,8 @@ identity/group membership -> privacy policy -> availability service -> API proje
 - `POST /api/courses` / `PUT|DELETE /api/courses/:courseId`：课程与上课时段事务编辑
 - `PUT /api/course-meetings/:meetingId/skip`：切换指定教学周的 Skip
 - `POST /api/busy-blocks` / `PUT|DELETE /api/busy-blocks/:busyId`：临时或周期 Busy
+- `PUT /api/auth/profile`：更新昵称与默认隐私级别
 
 ## 下一切片
 
-完成全流程响应式、键盘操作与无障碍回归，并在数据库可用时执行真实导入到共同空闲的端到端验收。
+V1 全部切片已完成：设置页（Profile/Privacy/Semester + 退出登录）、响应式与无障碍回归、真实数据库端到端验收（登录 → Excel 导入 → 建群/加入 → 共同空闲 → 三级隐私裁剪 → Skip → 退出）均已通过。后续方向见 SPEC 第 67 节（V1.5/V2：IAAA 认证、邮箱验证、多学校支持等）。

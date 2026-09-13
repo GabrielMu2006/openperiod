@@ -170,11 +170,13 @@ function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof 
 }
 
 export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
+  let recognizedStructure = false;
   for (const sheet of sheets) {
     const header = findRowHeader(sheet);
     if (header) {
       const result = parseRowSheet(sheet, header);
       if (result.courses.length) return result;
+      recognizedStructure = true;
     }
   }
   for (const sheet of sheets) {
@@ -182,8 +184,10 @@ export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
     if (header) {
       const result = parseGridSheet(sheet, header);
       if (result.courses.length) return result;
+      recognizedStructure = true;
     }
   }
+  if (recognizedStructure) throw new Error("课表格式已识别，但没有读到课程行——请填写课程后再导入");
   throw new Error("当前版本仅支持北京大学课表或课隙标准模板");
 }
 

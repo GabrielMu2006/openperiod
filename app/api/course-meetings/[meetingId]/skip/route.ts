@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getCurrentUser } from "@/src/server/auth/session";
 import { errorResponse } from "@/src/server/http";
 import { setMeetingSkipped } from "@/src/server/schedule/data";
@@ -17,4 +18,3 @@ export async function PUT(request: Request, context: { params: Promise<{ meeting
     return errorResponse(error);
   }
 }
-import { z } from "zod";
