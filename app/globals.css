@@ -12,7 +12,7 @@
   --border-strong: #d4ccc6;
   --text-primary: #201b1b;
   --text-secondary: #6e6565;
-  --text-tertiary: #968d8d;
+  --text-tertiary: #6f6868;
   --free: #2f7d5a;
   --free-bg: #e8f3ed;
   --free-border: #b9d9c8;
@@ -143,6 +143,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 
 .detail-backdrop { position: fixed; z-index: 100; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgb(32 27 27 / 28%); animation: fade-in 160ms ease both; }
 .slot-detail { position: relative; width: min(390px, 100%); padding: 26px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: 0 24px 80px rgb(32 27 27 / 20%); animation: detail-in 180ms ease both; }
+.slot-detail:focus, .schedule-editor:focus { outline: none; }
 .detail-close { position: absolute; right: 15px; top: 15px; width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-size: 24px; cursor: pointer; }
 .detail-close:hover { background: var(--surface-hover); }
 .slot-detail h2 { margin: 0 0 18px; font-size: 21px; }
@@ -559,4 +560,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .semester-facts { grid-template-columns: 1fr; }
   .settings-actions { padding: 0 16px; }
   .save-button { flex: 1; }
+}
+
+/* Accessibility regression: mobile touch targets ≥ 44px */
+@media (max-width: 639px) {
+  .member-chips button { min-height: 44px; }
+  .detail-close { min-width: 44px; min-height: 44px; }
 }

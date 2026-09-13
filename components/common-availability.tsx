@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useDialogBehavior } from "@/components/dialog-behavior";
 import { WEEKDAYS, type AvailabilitySlot, type PrivacyLevel, type Weekday } from "@/src/domain/schedule";
 
 const weekdayLabels: Record<Weekday, string> = {
@@ -49,6 +50,7 @@ export function CommonAvailability() {
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
   const [loadingDetail, setLoadingDetail] = useState("");
   const [error, setError] = useState("");
+  const detailRef = useDialogBehavior(selectedSlot !== null, () => setSelectedSlot(null));
 
   const activeGroup = useMemo(
     () => groups?.find((group) => group.id === activeGroupId) ?? null,
@@ -151,7 +153,7 @@ export function CommonAvailability() {
       </header>
 
       <aside className="sidebar" aria-label="主导航">
-        <nav>{navItems.map((item, index) => <a className={index === 0 ? "active" : ""} href={item.href} key={item.label}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}</nav>
+        <nav>{navItems.map((item, index) => <a className={index === 0 ? "active" : ""} aria-current={index === 0 ? "page" : undefined} href={item.href} key={item.label}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}</nav>
         {activeGroup && <div className="semester-note"><span />{activeGroup.semester.academicYear} {activeGroup.semester.semester.replace("学期", "")}<br /><small>北京大学 · 第 {week} 周</small></div>}
       </aside>
 
@@ -179,8 +181,8 @@ export function CommonAvailability() {
         ) : null}
       </main>
 
-      <nav className="bottom-nav" aria-label="移动端主导航">{navItems.map((item, index) => <a className={index === 0 ? "active" : ""} href={item.href} key={item.label}><span>{item.icon}</span>{item.label === "设置" ? "我的" : item.label}</a>)}</nav>
-      {selectedSlot && <div className="detail-backdrop" role="presentation" onMouseDown={() => setSelectedSlot(null)}><section className="slot-detail" role="dialog" aria-modal="true" aria-labelledby="slot-title" onMouseDown={(event) => event.stopPropagation()}><button className="detail-close" type="button" onClick={() => setSelectedSlot(null)} aria-label="关闭">×</button><p className="eyebrow">SLOT DETAIL</p><h2 id="slot-title">周{weekdayLabels[selectedSlot.weekday]} · 第 {selectedSlot.period} 节</h2><div className={selectedSlot.slot.commonFree ? "detail-summary free" : "detail-summary"}><strong>{selectedSlot.slot.freeCount} / {selectedSlot.slot.selectedUsers}</strong><span>{selectedSlot.slot.commonFree ? "人均有空" : "人有空"}</span></div><ul>{selectedSlot.slot.details.map((detail) => <li key={detail.userId}><span className={detail.free ? "status-free" : "status-busy"}>{detail.free ? "✓" : "●"}</span><strong>{detail.nickname}</strong><small>{detail.free ? "空闲" : detail.label}</small></li>)}</ul><p className="privacy-hint">私人忙碌标题与“本周不去”状态不会对其他成员公开。</p></section></div>}
+      <nav className="bottom-nav" aria-label="移动端主导航">{navItems.map((item, index) => <a className={index === 0 ? "active" : ""} aria-current={index === 0 ? "page" : undefined} href={item.href} key={item.label}><span>{item.icon}</span>{item.label === "设置" ? "我的" : item.label}</a>)}</nav>
+      {selectedSlot && <div className="detail-backdrop" role="presentation" onMouseDown={() => setSelectedSlot(null)}><section ref={detailRef} tabIndex={-1} className="slot-detail" role="dialog" aria-modal="true" aria-labelledby="slot-title" onMouseDown={(event) => event.stopPropagation()}><button className="detail-close" type="button" onClick={() => setSelectedSlot(null)} aria-label="关闭">×</button><p className="eyebrow">SLOT DETAIL</p><h2 id="slot-title">周{weekdayLabels[selectedSlot.weekday]} · 第 {selectedSlot.period} 节</h2><div className={selectedSlot.slot.commonFree ? "detail-summary free" : "detail-summary"}><strong>{selectedSlot.slot.freeCount} / {selectedSlot.slot.selectedUsers}</strong><span>{selectedSlot.slot.commonFree ? "人均有空" : "人有空"}</span></div><ul>{selectedSlot.slot.details.map((detail) => <li key={detail.userId}><span className={detail.free ? "status-free" : "status-busy"}>{detail.free ? "✓" : "●"}</span><strong>{detail.nickname}</strong><small>{detail.free ? "空闲" : detail.label}</small></li>)}</ul><p className="privacy-hint">私人忙碌标题与“本周不去”状态不会对其他成员公开。</p></section></div>}
     </div>
   );
 }
