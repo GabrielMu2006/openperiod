@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { identifyUser } from "@/src/server/auth/identity";
 import { createSession } from "@/src/server/auth/session";
+import { isEmailVerificationEnabled, issueEmailCode } from "@/src/server/auth/verification";
 import { errorResponse } from "@/src/server/http";
 
 export const runtime = "nodejs";
@@ -21,6 +22,11 @@ export async function POST(request: Request) {
     }
 
     const user = await identifyUser(parsed.data);
+    if (isEmailVerificationEnabled() && !user.emailVerifiedAt) {
+      await issueEmailCode(user.id, user.email);
+      return Response.json({ verificationRequired: true, email: user.email });
+    }
+
     await createSession(user.id);
     return Response.json({ user }, { status: 200 });
   } catch (error) {

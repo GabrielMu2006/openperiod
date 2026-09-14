@@ -386,6 +386,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .identity-form > button:hover:not(:disabled) { background: var(--brand-800); }
 .identity-form > button:disabled { opacity: .65; cursor: wait; }
 .form-error { margin: -5px 0 14px; color: var(--danger); font-size: 13px; }
+.code-hint { margin: 12px 0 8px; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.code-actions { display: flex; justify-content: space-between; gap: 12px; }
+.link-button { border: 0; padding: 0; background: transparent; color: var(--pku-red); font-size: 13px; font-weight: 600; cursor: pointer; }
+.link-button:disabled { color: var(--text-tertiary); cursor: default; }
 .identity-disclaimer { margin: 20px 0 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.6; }
 
 @media (max-width: 639px) {

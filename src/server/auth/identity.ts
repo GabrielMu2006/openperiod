@@ -19,7 +19,7 @@ export async function identifyUser(input: IdentityInput) {
       target: users.email,
       set: { nickname: normalized.nickname, updatedAt: new Date() },
     })
-    .returning({ id: users.id, nickname: users.nickname, email: users.email });
+    .returning({ id: users.id, nickname: users.nickname, email: users.email, emailVerifiedAt: users.emailVerifiedAt });
 
   if (!user) throw new Error("Failed to identify user");
   return user;

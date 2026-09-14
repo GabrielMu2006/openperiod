@@ -27,12 +27,30 @@ export const users = pgTable(
     nickname: varchar("nickname", { length: 80 }).notNull(),
     email: varchar("email", { length: 320 }).notNull(),
     defaultPrivacyLevel: integer("default_privacy_level").notNull().default(1),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     unique("users_email_unique").on(table.email),
     check("users_privacy_level_check", sql`${table.defaultPrivacyLevel} between 0 and 2`),
+  ],
+);
+
+export const emailVerificationCodes = pgTable(
+  "email_verification_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("email_verification_codes_user_id_idx").on(table.userId),
+    index("email_verification_codes_expires_at_idx").on(table.expiresAt),
   ],
 );
 

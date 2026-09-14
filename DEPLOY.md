@@ -47,6 +47,19 @@ git push origin main
 - **身份模型**：0.1.0 登录不验证邮箱，知道邮箱即可接管账号。只把地址发给信得过的人。
 - **数据出境**：Neon 数据存境外节点。正式运营前应迁移到境内数据库（PIPL 对个人信息出境有要求）。
 
+## 邮箱验证码登录（可选，配好即启用）
+
+实现已就绪，**全部配齐以下 4 个环境变量后自动启用**；缺任何一个都保持旧的免验证行为：
+
+| 变量 | 值 |
+|---|---|
+| `DIRECTMAIL_ACCESS_KEY_ID` | 阿里云 AccessKey ID（建议 RAM 子账号 + 邮件推送权限） |
+| `DIRECTMAIL_ACCESS_KEY_SECRET` | 阿里云 AccessKey Secret |
+| `DIRECTMAIL_ACCOUNT` | 发信地址，如 `noreply@mail.gabrielmu2006.cn` |
+| `DIRECTMAIL_FROM_ALIAS` | 发件人显示名，如 `课隙`（可选，默认"课隙"） |
+
+启用后：新邮箱首次登录需输入发送到邮箱的 6 位验证码（15 分钟有效）；同一邮箱 60 秒内只能重发、每天最多 5 条；错误 5 次后验证码作废。已验证邮箱直接登录。
+
 ## 迁移到国内服务器（备案通过后）
 
 1. 服务器上跑 `docker compose up -d postgres` + 应用进程（或届时补充的完整 compose）。

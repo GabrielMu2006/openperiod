@@ -1,6 +1,8 @@
 import { IdentityForm } from "@/components/identity-form";
+import { isEmailVerificationEnabled } from "@/src/server/auth/verification";
 
 export default function LoginPage() {
+  const verificationEnabled = isEmailVerificationEnabled();
   return (
     <main className="identity-page">
       <section className="identity-card">
@@ -14,7 +16,11 @@ export default function LoginPage() {
           <p>留下昵称和邮箱，即可在这台设备上恢复你的课表与群组。</p>
         </div>
         <IdentityForm />
-        <p className="identity-disclaimer">V1 不验证邮箱，仅适合小规模熟人使用。请勿使用他人的邮箱。</p>
+        <p className="identity-disclaimer">
+          {verificationEnabled
+            ? "新邮箱首次登录需要输入邮件验证码，确认邮箱属于你本人。"
+            : "V1 暂不验证邮箱，仅适合小规模熟人使用。请勿使用他人的邮箱。"}
+        </p>
       </section>
     </main>
   );
