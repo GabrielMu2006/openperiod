@@ -68,18 +68,20 @@ function longDateLabel(startDate: string, week: number, weekdayIndex: number) {
   return date ? `${date.getUTCMonth() + 1}月${date.getUTCDate()}日` : "";
 }
 
-// 苹果系剔透配色：翡翠绿 → 亮黄 → 珊瑚红；高亮度渐变 + 顶部玻璃高光
+// 毛玻璃材质 · 方案 G4「透·薄荷+珊瑚」：低透明度，绿色走薄荷调、「没人有空」用珊瑚橘
 function slotHeatStyle(pct: number) {
   const p = Math.min(1, Math.max(0, pct));
-  const hue = Math.round(8 + (135 - 8) * p);
+  const hue = Math.round(16 + (158 - 16) * p);
   const edge = Math.abs(p - 0.5) * 2; // 0 中段 → 1 两端
-  const sat = Math.round(68 + 24 * edge);
-  const light = Math.round(88 - 34 * edge);
-  const topLight = Math.min(97, light + 7);
+  const sat = Math.round(70 + 12 * edge);
+  const alpha = 0.42 + 0.13 * edge;
+  const glass = (a: number) => `hsla(${hue}, ${sat}%, 52%, ${a.toFixed(2)})`;
   return {
-    backgroundImage: `linear-gradient(180deg, hsl(${hue} ${sat}% ${topLight}%) 0%, hsl(${hue} ${sat}% ${light}%) 100%)`,
-    color: light < 70 ? "rgb(255 255 255 / 95%)" : "var(--text-primary)",
-    boxShadow: `inset 0 0 0 1px hsl(${hue} ${Math.min(95, sat + 3)}% ${Math.max(30, light - 12)}%), inset 0 1px 0 rgb(255 255 255 / 35%)`,
+    backgroundImage: `linear-gradient(180deg, ${glass(alpha + 0.06)} 0%, ${glass(alpha)} 100%)`,
+    color: edge > 0.55 ? "rgba(255, 255, 255, 0.96)" : "var(--text-primary)",
+    backdropFilter: "blur(14px) saturate(1.6)",
+    WebkitBackdropFilter: "blur(14px) saturate(1.6)",
+    boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45)",
   };
 }
 
