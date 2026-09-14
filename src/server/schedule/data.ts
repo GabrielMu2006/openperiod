@@ -7,6 +7,7 @@ import { busyBlocks, courseExceptions, courseMeetings, courses } from "@/src/ser
 import { HttpError } from "@/src/server/http";
 import { ensureDefaultSemester } from "@/src/server/semesters/data";
 import type { busyMutationSchema, courseMutationSchema } from "./validation";
+import { diffCourseMeetings } from "./meeting-diff";
 
 type CourseInput = z.infer<typeof courseMutationSchema>;
 type BusyInput = z.infer<typeof busyMutationSchema>;
@@ -99,11 +100,25 @@ export async function updateCourse(userId: string, courseId: string, input: Cour
       name: input.name, instructor: input.instructor || null, location: input.location || null,
     }).where(and(eq(courses.id, courseId), eq(courses.userId, userId))).returning({ id: courses.id });
     if (!course) throw new HttpError(404, "课程不存在");
-    await tx.delete(courseMeetings).where(eq(courseMeetings.courseId, course.id));
-    await tx.insert(courseMeetings).values(input.meetings.map((meeting) => ({
-      courseId: course.id, weekday: weekdayNumber[meeting.weekday],
-      startPeriod: meeting.startPeriod, endPeriod: meeting.endPeriod, weeks: meeting.weeks,
+
+    // 智能保留：未变化的时段原样保留（含其上的「本周不去」记录），只重建真正被改动的时段
+    const existingMeetings = await tx.select().from(courseMeetings).where(eq(courseMeetings.courseId, course.id));
+    const diff = diffCourseMeetings(existingMeetings, input.meetings.map((meeting) => ({
+      weekday: weekdayNumber[meeting.weekday],
+      startPeriod: meeting.startPeriod,
+      endPeriod: meeting.endPeriod,
+      weeks: meeting.weeks,
     })));
+
+    if (diff.removedIds.length) {
+      await tx.delete(courseMeetings).where(inArray(courseMeetings.id, diff.removedIds));
+    }
+    if (diff.inserts.length) {
+      await tx.insert(courseMeetings).values(diff.inserts.map((meeting) => ({
+        courseId: course.id, weekday: meeting.weekday,
+        startPeriod: meeting.startPeriod, endPeriod: meeting.endPeriod, weeks: meeting.weeks,
+      })));
+    }
   });
 }
 

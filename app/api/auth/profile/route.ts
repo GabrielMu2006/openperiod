@@ -6,8 +6,8 @@ import { errorResponse } from "@/src/server/http";
 export const runtime = "nodejs";
 
 const profileSchema = z.object({
-  nickname: z.string().trim().min(1, "请输入昵称").max(80, "昵称过长"),
-  defaultPrivacyLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  nickname: z.string().trim().min(1, "请输入昵称").max(80, "昵称过长").optional(),
+  defaultPrivacyLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
 });
 
 export async function PUT(request: Request) {

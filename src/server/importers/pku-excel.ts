@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import readExcelFile from "read-excel-file/node";
 import * as SheetJS from "xlsx";
+import { HttpError } from "@/src/server/http";
 import type {
   DetectionResult,
   ImportCourseDraft,
@@ -235,8 +236,8 @@ export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
       recognizedStructure = true;
     }
   }
-  if (recognizedStructure) throw new Error("课表格式已识别，但没有读到课程行——请填写课程后再导入");
-  throw new Error("当前版本仅支持北京大学课表或课隙标准模板");
+  if (recognizedStructure) throw new HttpError(422, "课表格式已识别，但没有读到课程行——请填写课程后再导入");
+  throw new HttpError(422, "当前版本仅支持北京大学课表或课隙标准模板");
 }
 
 // OLE2 复合文档魔数：Excel 97-2003（.xls）文件头
@@ -257,7 +258,7 @@ function readLegacyXls(file: ArrayBuffer): SheetData[] {
 
 async function readSheets(file: ArrayBuffer): Promise<SheetData[]> {
   const sheets = isLegacyBinaryExcel(file) ? readLegacyXls(file) : await readExcelFile(Buffer.from(file));
-  if (sheets.length > 10 || sheets.some((sheet) => sheet.data.length > 5000)) throw new Error("Excel 内容过大，无法安全解析");
+  if (sheets.length > 10 || sheets.some((sheet) => sheet.data.length > 5000)) throw new HttpError(413, "Excel 内容过大，无法安全解析");
   return sheets as SheetData[];
 }
 
@@ -268,7 +269,7 @@ export class PkuExcelImporter implements TimetableImporter {
     const sheets = await readSheets(file);
     if (sheets.some(findRowHeader)) return { supported: true, format: "ROW", confidence: 1, reason: "识别到标准行式课表字段" };
     if (sheets.some(findGridHeader)) return { supported: true, format: "GRID", confidence: 0.8, reason: "识别到星期课表网格" };
-    return { supported: false, format: null, confidence: 0, reason: "未识别到 PKU 课表字段或星期网格" };
+    return { supported: false, format: null, confidence: 0, reason: "未识别到课表内容：目前支持北大教务系统导出的课表，或课隙标准模板" };
   }
 
   async parse(file: ArrayBuffer): Promise<ImportPreviewPayload> {

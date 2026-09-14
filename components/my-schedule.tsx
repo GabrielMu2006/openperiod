@@ -57,6 +57,13 @@ function weeksText(weeks: number[]) {
   return value;
 }
 
+function weeksDescription(weeks: number[]) {
+  if (!weeks.length) return "无";
+  if (weeks.length === 1) return `第 ${weeks[0]} 周`;
+  const consecutive = weeks.every((week, index) => index === 0 || week === weeks[index - 1] + 1);
+  return consecutive ? `第 ${weeks[0]}–${weeks[weeks.length - 1]} 周` : `第 ${weeks.join("、")} 周`;
+}
+
 async function mutation(url: string, method: string, body?: unknown) {
   const response = await fetch(url, {
     method,
@@ -116,7 +123,7 @@ export function MySchedule() {
     <div className="schedule-shell">
       <header className="simple-header"><a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a><nav><a href="/">共同空闲</a><a href="/groups">群组</a><a href="/settings">设置</a></nav></header>
       <main className="schedule-page">
-        <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester} · 北京大学` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
+        <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester}` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
         {error && <div className="page-error" role="alert">{error}</div>}
         {notice && <div className="page-success" role="status">{notice}</div>}
         {schedule && week !== null ? <>
@@ -126,7 +133,7 @@ export function MySchedule() {
             {Array.from({ length: 12 }, (_, index) => index + 1).map((period) => <div className="my-period" style={{ gridRow: period + 1 }} key={period}><strong>{period}</strong><small>第 {period} 节</small></div>)}
             {Array.from({ length: 84 }, (_, index) => <div className="my-grid-cell" style={{ gridColumn: index % 7 + 2, gridRow: Math.floor(index / 7) + 2 }} key={index} />)}
             {visibleCourses.map(({ course, meeting }) => <button type="button" className={`my-course-block ${meeting.skippedThisWeek ? "skipped" : ""}`} style={{ gridColumn: WEEKDAYS.indexOf(meeting.weekday) + 2, gridRow: `${meeting.startPeriod + 1} / ${meeting.endPeriod + 2}` }} onClick={() => setSelection({ type: "course", course, meetingId: meeting.id })} key={meeting.id}><strong>{course.name}</strong><span>{course.location || `${meeting.startPeriod}–${meeting.endPeriod} 节`}</span>{meeting.skippedThisWeek && <em>本周不去</em>}</button>)}
-            {visibleBusy.map((block) => <button type="button" className="my-busy-block" style={{ gridColumn: WEEKDAYS.indexOf(block.weekday) + 2, gridRow: `${block.startPeriod + 1} / ${block.endPeriod + 2}` }} onClick={() => setSelection({ type: "busy", block })} key={block.id}><strong>{block.title || "忙碌"}</strong><span>{block.kind === "ONE_TIME" ? "仅本周" : "周期"}</span></button>)}
+            {visibleBusy.map((block) => <button type="button" className="my-busy-block" style={{ gridColumn: WEEKDAYS.indexOf(block.weekday) + 2, gridRow: `${block.startPeriod + 1} / ${block.endPeriod + 2}` }} onClick={() => setSelection({ type: "busy", block })} key={block.id}><strong>{block.title || "忙碌"}</strong><span>{block.kind === "ONE_TIME" ? `仅第 ${block.weeks.join(",")} 周` : "周期"}</span></button>)}
           </div></div>}
           <div className="my-schedule-legend"><span><i className="course" />课程</span><span><i className="busy" />私人忙碌</span><span><i className="skipped" />本周不去</span><small>私人忙碌标题与 Skip 状态不会对其他成员公开。</small></div>
         </> : !error && <div className="preview-loading">正在读取个人课表…</div>}
@@ -181,14 +188,18 @@ function CourseEditor({ selection, week, onClose, onSaved, onError }: EditorProp
 function BusyEditor({ selection, week, onClose, onSaved, onError }: EditorProps<BusySelection>) {
   const dialogRef = useDialogBehavior(true, onClose, false);
   const block = selection.block;
-  const initialRepeat = block?.kind === "ONE_TIME" ? "THIS_WEEK" : weeksText(block?.weeks ?? []) === "1-16" ? "EVERY" : weeksText(block?.weeks ?? []) === "单周" ? "ODD" : weeksText(block?.weeks ?? []) === "双周" ? "EVEN" : "CUSTOM";
+  // 新增时默认「仅本周」（当前查看周）；已有的一次性忙碌按自定义周展示，避免编辑时被悄悄改成当前周
+  const initialRepeat = block ? (block.kind === "ONE_TIME" ? "CUSTOM" : weeksText(block.weeks) === "1-16" ? "EVERY" : weeksText(block.weeks) === "单周" ? "ODD" : weeksText(block.weeks) === "双周" ? "EVEN" : "CUSTOM") : "THIS_WEEK";
   const [title, setTitle] = useState(block?.title ?? "");
   const [weekday, setWeekday] = useState<Weekday>(block?.weekday ?? "monday");
   const [startPeriod, setStartPeriod] = useState(block?.startPeriod ?? 1);
   const [endPeriod, setEndPeriod] = useState(block?.endPeriod ?? 2);
   const [repeat, setRepeat] = useState(initialRepeat);
-  const [customWeeks, setCustomWeeks] = useState(block ? weeksText(block.weeks) : "1,2,5");
+  const [customWeeks, setCustomWeeks] = useState(block ? weeksText(block.weeks) : String(week));
   const [pending, setPending] = useState(false);
+
+  const effectiveSource = repeat === "THIS_WEEK" ? String(week) : repeat === "EVERY" ? "1-16" : repeat === "ODD" ? "单周" : repeat === "EVEN" ? "双周" : customWeeks;
+  const effectiveWeeks = parseWeekRule(effectiveSource);
 
   async function save() {
     const source = repeat === "THIS_WEEK" ? String(week) : repeat === "EVERY" ? "1-16" : repeat === "ODD" ? "单周" : repeat === "EVEN" ? "双周" : customWeeks;
@@ -206,6 +217,6 @@ function BusyEditor({ selection, week, onClose, onSaved, onError }: EditorProps<
     catch (cause) { onError(cause instanceof Error ? cause.message : "删除失败"); setPending(false); }
   }
 
-  return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor busy-editor" role="dialog" aria-modal="true" aria-labelledby="busy-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">PRIVATE BUSY</p><h2 id="busy-editor-title">{block ? "编辑忙碌" : "标记忙碌"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body"><label>标题（可选，仅自己可见）<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="例如：组会" autoFocus /></label><div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><label>开始<input type="number" min={1} max={12} value={startPeriod} onChange={(event) => setStartPeriod(Number(event.target.value))} /></label><label>结束<input type="number" min={1} max={12} value={endPeriod} onChange={(event) => setEndPeriod(Number(event.target.value))} /></label></div><fieldset><legend>重复</legend>{[["THIS_WEEK", "仅本周"], ["EVERY", "每周"], ["ODD", "单周"], ["EVEN", "双周"], ["CUSTOM", "自定义"]].map(([value, label]) => <label className="radio-option" key={value}><input type="radio" name="repeat" value={value} checked={repeat === value} onChange={() => setRepeat(value)} />{label}</label>)}</fieldset>{repeat === "CUSTOM" && <label>自定义周次<input value={customWeeks} onChange={(event) => setCustomWeeks(event.target.value)} placeholder="1,2,5,8,12" /></label>}<p className="busy-privacy-note">其他成员只会看到“忙碌”，不会看到标题。</p></div><footer>{block && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除忙碌</button>}<span /><button className="editor-save" type="button" disabled={pending} onClick={save}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
+  return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor busy-editor" role="dialog" aria-modal="true" aria-labelledby="busy-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">PRIVATE BUSY</p><h2 id="busy-editor-title">{block ? "编辑忙碌" : "标记忙碌"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body"><label>标题（可选，仅自己可见）<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="例如：组会" autoFocus /></label><div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><label>开始<input type="number" min={1} max={12} value={startPeriod} onChange={(event) => setStartPeriod(Number(event.target.value))} /></label><label>结束<input type="number" min={1} max={12} value={endPeriod} onChange={(event) => setEndPeriod(Number(event.target.value))} /></label></div><fieldset><legend>重复</legend>{[["THIS_WEEK", "仅本周"], ["EVERY", "每周"], ["ODD", "单周"], ["EVEN", "双周"], ["CUSTOM", "自定义"]].map(([value, label]) => <label className="radio-option" key={value}><input type="radio" name="repeat" value={value} checked={repeat === value} onChange={() => setRepeat(value)} />{label}</label>)}</fieldset>{repeat === "CUSTOM" && <label>自定义周次<input value={customWeeks} onChange={(event) => setCustomWeeks(event.target.value)} placeholder="1,2,5,8,12" /></label>}<p className="busy-weeks-preview">{effectiveWeeks.recognized ? `生效教学周：${weeksDescription(effectiveWeeks.weeks)}` : "周次格式无法识别，请检查"}</p><p className="busy-privacy-note">其他成员只会看到“忙碌”，不会看到标题。</p></div><footer>{block && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除忙碌</button>}<span /><button className="editor-save" type="button" disabled={pending} onClick={save}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
 }
 

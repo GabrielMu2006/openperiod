@@ -9,7 +9,10 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) return Response.json({ error: "未登录" }, { status: 401 });
-    return Response.json({ groups: await listGroupsForUser(user.id) });
+    return Response.json({
+      groups: await listGroupsForUser(user.id),
+      defaultPrivacyLevel: user.defaultPrivacyLevel,
+    });
   } catch (error) {
     return errorResponse(error);
   }

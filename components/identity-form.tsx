@@ -3,9 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+type Step = "email" | "code" | "nickname";
+
 export function IdentityForm() {
   const router = useRouter();
-  const [step, setStep] = useState<"form" | "code">("form");
+  const [step, setStep] = useState<Step>("email");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [nickname, setNickname] = useState("");
@@ -20,37 +22,43 @@ export function IdentityForm() {
     return () => clearInterval(timer);
   }, [step]);
 
-  async function submitIdentity(event: FormEvent<HTMLFormElement>) {
+  function enter() {
+    router.replace("/");
+    router.refresh();
+  }
+
+  async function submitEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError("");
 
     const form = new FormData(event.currentTarget);
-    const identity = {
-      nickname: String(form.get("nickname") ?? ""),
-      email: String(form.get("email") ?? ""),
-    };
+    const input = String(form.get("email") ?? "");
     try {
       const response = await fetch("/api/auth/identify", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(identity),
+        body: JSON.stringify({ email: input }),
       });
-      const body = (await response.json()) as { error?: string; verificationRequired?: boolean; email?: string };
-      if (!response.ok) throw new Error(body.error ?? "暂时无法创建身份");
+      const body = (await response.json()) as { error?: string; verificationRequired?: boolean; email?: string; user?: { nickname: string }; needsNickname?: boolean };
+      if (!response.ok) throw new Error(body.error ?? "暂时无法登录");
+      setEmail(body.email ?? input);
       if (body.verificationRequired) {
-        setNickname(identity.nickname);
-        setEmail(body.email ?? identity.email);
         setCode("");
         setCooldownUntil(Date.now() + 60_000);
         setStep("code");
         setPending(false);
         return;
       }
-      router.replace("/");
-      router.refresh();
+      if (body.needsNickname && body.user) {
+        setNickname(body.user.nickname);
+        setStep("nickname");
+        setPending(false);
+        return;
+      }
+      enter();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "暂时无法创建身份");
+      setError(cause instanceof Error ? cause.message : "暂时无法登录");
       setPending(false);
     }
   }
@@ -65,12 +73,36 @@ export function IdentityForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, code }),
       });
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as { error?: string; user?: { nickname: string }; needsNickname?: boolean };
       if (!response.ok) throw new Error(body.error ?? "验证失败");
-      router.replace("/");
-      router.refresh();
+      if (body.needsNickname && body.user) {
+        setNickname(body.user.nickname);
+        setStep("nickname");
+        setPending(false);
+        return;
+      }
+      enter();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "验证失败");
+      setPending(false);
+    }
+  }
+
+  async function submitNickname(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/profile", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ nickname }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "保存昵称失败");
+      enter();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "保存昵称失败");
       setPending(false);
     }
   }
@@ -119,20 +151,42 @@ export function IdentityForm() {
           <button type="button" className="link-button" disabled={pending || cooldownSeconds > 0} onClick={resendCode}>
             {cooldownSeconds > 0 ? `重新发送（${cooldownSeconds}s）` : "重新发送"}
           </button>
-          <button type="button" className="link-button" onClick={() => { setStep("form"); setError(""); setCode(""); }}>返回修改邮箱</button>
+          <button type="button" className="link-button" onClick={() => { setStep("email"); setError(""); setCode(""); }}>返回修改邮箱</button>
+        </div>
+      </form>
+    );
+  }
+
+  if (step === "nickname") {
+    return (
+      <form className="identity-form" onSubmit={submitNickname}>
+        <label htmlFor="nickname">设置昵称</label>
+        <input
+          id="nickname"
+          name="nickname"
+          autoComplete="nickname"
+          required
+          maxLength={80}
+          value={nickname}
+          placeholder="朋友看到的名字"
+          autoFocus
+          onChange={(event) => setNickname(event.target.value)}
+        />
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button type="submit" disabled={pending || !nickname.trim()}>{pending ? "正在保存…" : "完成并进入"}</button>
+        <div className="code-actions">
+          <button type="button" className="link-button" disabled={pending} onClick={enter}>跳过，稍后在设置中修改</button>
         </div>
       </form>
     );
   }
 
   return (
-    <form className="identity-form" onSubmit={submitIdentity}>
-      <label htmlFor="nickname">昵称</label>
-      <input id="nickname" name="nickname" autoComplete="nickname" required maxLength={80} placeholder="朋友看到的名字" defaultValue={nickname} />
+    <form className="identity-form" onSubmit={submitEmail}>
       <label htmlFor="email">邮箱</label>
-      <input id="email" name="email" type="email" autoComplete="email" required maxLength={320} placeholder="name@pku.edu.cn" defaultValue={email} />
+      <input id="email" name="email" type="email" autoComplete="email" required maxLength={320} placeholder="name@example.com" defaultValue={email} />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button type="submit" disabled={pending}>{pending ? "正在进入…" : "开始使用"}</button>
+      <button type="submit" disabled={pending}>{pending ? "正在进入…" : "继续"}</button>
     </form>
   );
 }

@@ -13,7 +13,7 @@ export default function LoginPage() {
         <div className="identity-heading">
           <p className="eyebrow">WELCOME</p>
           <h1>找到大家共同的空档</h1>
-          <p>留下昵称和邮箱，即可在这台设备上恢复你的课表与群组。</p>
+          <p>输入邮箱即可登录或注册，课表与群组数据随账号保留。</p>
         </div>
         <IdentityForm />
         <p className="identity-disclaimer">

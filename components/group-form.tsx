@@ -9,6 +9,7 @@ interface GroupFormProps {
 }
 
 const privacyOptions = [
+  { value: "default", title: "跟随我的默认设置", description: "使用「我的」页面里的默认隐私级别；以后修改默认时，本群自动跟随。" },
   { value: "0", title: "仅显示忙 / 闲", description: "别人只知道这个时间能不能约。" },
   { value: "1", title: "显示课程名称", description: "显示课程名，不显示教师和地点。" },
   { value: "2", title: "显示完整课程", description: "可以显示课程、教师和上课地点。" },
@@ -24,7 +25,8 @@ export function GroupForm({ mode, initialCode = "" }: GroupFormProps) {
     setPending(true);
     setError("");
     const form = new FormData(event.currentTarget);
-    const privacyLevel = Number(form.get("privacyLevel")) as 0 | 1 | 2;
+    const rawPrivacy = String(form.get("privacyLevel") ?? "default");
+    const privacyLevel = rawPrivacy === "default" ? null : Number(rawPrivacy) as 0 | 1 | 2;
     const body = mode === "create"
       ? { name: form.get("name"), privacyLevel }
       : { code: form.get("code"), privacyLevel };

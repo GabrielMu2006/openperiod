@@ -187,6 +187,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .group-privacy-row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; }
 .group-privacy-row span { color: var(--text-secondary); font-size: 12px; }
 .group-privacy-row select { max-width: 155px; border: 0; color: var(--text-primary); background: transparent; font-size: 12px; text-align: right; }
+.group-privacy-row { flex-wrap: wrap; }
+.privacy-effective { flex-basis: 100%; margin-top: -4px; color: var(--text-tertiary); font-size: 11px; }
 .view-group { display: flex; justify-content: space-between; margin-top: 18px; color: var(--brand-800); font-size: 14px; font-weight: 700; text-decoration: none; }
 
 .form-page { min-height: 100vh; display: grid; place-items: start center; padding: 9vh 16px 40px; background: radial-gradient(circle at 50% 0%, rgb(148 7 10 / 7%), transparent 36rem), var(--canvas); }
@@ -477,6 +479,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .editor-body .radio-option { min-height: 39px; display: flex; align-items: center; grid-template-columns: auto 1fr; gap: 7px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; color: var(--text-primary); cursor: pointer; }
 .radio-option:has(input:checked) { border-color: #a6bdc2; background: #edf4f5; }
 .radio-option input { width: auto; height: auto; accent-color: #607d86; }
+.busy-weeks-preview { margin: -4px 0 0; color: var(--text-secondary); font-size: 12px; }
 .busy-privacy-note { margin: 0; padding: 12px 14px; border-radius: 9px; color: #52686d; background: #edf4f5; font-size: 11px; }
 .schedule-editor > footer { min-height: 70px; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-top: 1px solid var(--border); }
 .schedule-editor > footer span { flex: 1; }

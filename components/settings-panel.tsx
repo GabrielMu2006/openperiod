@@ -9,6 +9,7 @@ interface SessionUser {
   nickname: string;
   email: string;
   defaultPrivacyLevel: PrivacyLevel;
+  emailVerifiedAt: string | null;
 }
 
 interface SemesterInfo {
@@ -112,13 +113,13 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
           <div className="settings-field">
             邮箱
             <output className="settings-static">{user?.email ?? "…"}</output>
-            <p className="settings-note">邮箱当前承担你的账户身份作用。V1 不发送验证邮件。</p>
+            <p className="settings-note">{user?.emailVerifiedAt ? "邮箱已验证，之后在其他设备登录也无需再次验证。" : "邮箱尚未验证：下次登录时需要输入邮件验证码。"}</p>
           </div>
         </section>
 
         <section className="settings-card" aria-labelledby="settings-privacy">
           <h2 id="settings-privacy">默认隐私级别</h2>
-          <p className="settings-note">新加入的群组将使用此级别；也可以在群组卡片里按群覆盖。</p>
+          <p className="settings-note">新建群组和加入群组时默认使用此级别（可在表单中改为固定级别）；已单独设置的群组不受影响。</p>
           <div className="privacy-options" role="radiogroup" aria-label="默认隐私级别">
             {privacyOptions.map((option) => (
               <label className={`privacy-option ${privacy === option.value ? "selected" : ""}`} key={option.value}>
@@ -132,12 +133,11 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
         <section className="settings-card" aria-labelledby="settings-semester">
           <h2 id="settings-semester">学期</h2>
           <dl className="semester-facts">
-            <div><dt>学校</dt><dd>北京大学</dd></div>
             <div><dt>学期</dt><dd>{semester.academicYear} {semester.semester}</dd></div>
             <div><dt>周数</dt><dd>{semester.weekCount} 周</dd></div>
             <div><dt>开始日期</dt><dd>{semester.startDate}</dd></div>
           </dl>
-          <p className="settings-note">V1 暂不支持修改学校与学期。</p>
+          <p className="settings-note">学期信息由系统统一配置，暂不支持在此修改。</p>
         </section>
 
         <section className="settings-card settings-account" aria-labelledby="settings-account">

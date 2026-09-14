@@ -69,4 +69,10 @@ git push origin main
 
 ## 每学期运维
 
-更新环境变量 `OPENPERIOD_SEMESTER_START` 为新学期第一个周一（应用会自动把该日期写入数据库并重算教学周），然后重新部署。数据库备份：`pg_dump` 每周一次。
+学期配置（开学日/周数）由独立的显式流程更新，读写接口不会自动覆盖数据库：
+
+```bash
+node --env-file=.env scripts/apply-semester-config.mjs 2027-02-22 16 Asia/Shanghai
+```
+
+`OPENPERIOD_SEMESTER_START` 环境变量仅在数据库还没有该学期记录时用于首次创建；之后修改开学日必须用上面的脚本。数据库备份：`pg_dump` 每周一次。

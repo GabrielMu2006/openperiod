@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getDatabase } from "@/src/server/db";
 import { users } from "@/src/server/db/schema";
+import { isPlaceholderNickname } from "@/src/server/auth/identity";
 import { createSession } from "@/src/server/auth/session";
 import { verifyEmailCode } from "@/src/server/auth/verification";
 import { errorResponse } from "@/src/server/http";
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     await verifyEmailCode(user.id, parsed.data.code);
     await createSession(user.id);
-    return Response.json({ user });
+    return Response.json({ user, needsNickname: isPlaceholderNickname(user.nickname, user.email) });
   } catch (error) {
     return errorResponse(error);
   }

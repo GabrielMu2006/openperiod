@@ -43,6 +43,7 @@ export async function getCurrentUser() {
       nickname: users.nickname,
       email: users.email,
       defaultPrivacyLevel: users.defaultPrivacyLevel,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
