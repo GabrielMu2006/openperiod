@@ -688,3 +688,63 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .week-quick .week-grid { grid-template-columns: repeat(8, 1fr); }
   .import-grid { min-width: 480px; }
 }
+
+/* Batch 5: mobile compaction, day view, swipe hint, retry, touch targets */
+.page-error button { min-height: 34px; padding: 0 14px; border: 1px solid #efc4c0; border-radius: 8px; color: var(--danger); background: white; font-size: 13px; font-weight: 650; cursor: pointer; }
+.page-error button:hover { border-color: var(--danger); }
+.grid-scroller, .my-grid-scroller { position: relative; }
+.swipe-hint { position: absolute; z-index: 5; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 7px 14px; border-radius: 99px; background: rgb(32 27 27 / 72%); color: white; font-size: 11.5px; white-space: nowrap; pointer-events: none; transition: opacity 300ms ease, visibility 300ms ease; }
+.swipe-hint.gone { opacity: 0; visibility: hidden; }
+@media (min-width: 640px) { .swipe-hint { display: none; } }
+
+.mode-control { margin-left: auto; }
+.mode-control > span { display: block; margin-bottom: 8px; color: var(--text-tertiary); font-size: 12px; font-weight: 650; text-align: center; }
+.mode-toggle { display: inline-flex; padding: 3px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); }
+.mode-toggle button { min-height: 38px; padding: 0 16px; border: 0; border-radius: 8px; color: var(--text-secondary); background: transparent; font-size: 13px; font-weight: 650; cursor: pointer; }
+.mode-toggle button.on { color: white; background: var(--pku-red); }
+
+.day-view { display: grid; gap: 12px; }
+.day-chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.day-chips button { min-height: 52px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-secondary); background: var(--surface); font-size: 13px; font-weight: 650; cursor: pointer; }
+.day-chips button small { color: var(--text-tertiary); font-size: 10px; font-weight: 500; }
+.day-chips button.on { color: white; border-color: var(--pku-red); background: var(--pku-red); }
+.day-chips button.on small { color: rgb(255 255 255 / 80%); }
+.day-slots { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.day-slots li { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: stretch; }
+.day-slot-time { display: grid; align-content: center; gap: 2px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-warm); }
+.day-slot-time strong { font-size: 12.5px; }
+.day-slot-time small { color: var(--text-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.slot.day-slot { min-height: 52px; justify-content: flex-start; padding: 0 14px; }
+.slot.day-slot .partial-count { font-size: 13px; }
+
+.members-toggle { min-height: 38px; padding: 0 13px; border: 1px dashed var(--border-strong); border-radius: 99px; color: var(--text-secondary); background: transparent; font-size: 12.5px; cursor: pointer; }
+.members-toggle:hover { color: var(--brand-800); }
+
+@media (max-width: 639px) {
+  .page-heading { margin-bottom: 14px; }
+  .page-heading h1 { font-size: 23px; }
+  .page-heading > p { display: none; }
+  .controls { padding: 12px 16px; gap: 12px; }
+  .group-control span, .week-control > span, .mode-control > span { margin-bottom: 5px; }
+  .group-control select { min-height: 44px; }
+  .mode-control { width: 100%; }
+  .mode-control > span { text-align: left; }
+  .mode-toggle { width: 100%; }
+  .mode-toggle button { flex: 1; min-height: 44px; }
+  .member-bar { padding: 12px 16px; }
+  .slot.day-slot { min-height: 56px; }
+  .day-chips button { min-height: 56px; }
+
+  /* 触控区域 ≥ 40px */
+  .week-quick > button { min-height: 36px; padding: 0 12px; }
+  .week-grid button { min-height: 36px; }
+  .run-day-chips button { min-height: 40px; }
+  .free-runs-filters select { min-height: 40px; }
+  .warning-actions button { min-height: 40px; }
+  .run-copy { min-height: 40px; }
+  .add-meeting { min-height: 44px; }
+  .members-toggle { min-height: 44px; }
+  .back-to-now { min-height: 44px !important; }
+  .week-control .week-select { min-height: 44px; }
+  .week-control button { min-width: 44px; height: 44px; }
+}
