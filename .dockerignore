@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.zcode
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.log
+Dockerfile
+docker-compose*

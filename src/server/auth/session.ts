@@ -26,7 +26,8 @@ export async function createSession(userId: string) {
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // 生产默认要求 HTTPS；备案前的 IP 直连阶段可通过 ALLOW_INSECURE_COOKIE=1 临时放开
+    secure: process.env.NODE_ENV === "production" && process.env.ALLOW_INSECURE_COOKIE !== "1",
     path: "/",
     expires: expiresAt,
   });
