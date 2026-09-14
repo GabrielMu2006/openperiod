@@ -1,10 +1,11 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { generateInviteCode, normalizeInviteCode } from "@/src/domain/groups";
 import type { PrivacyLevel } from "@/src/domain/schedule";
 import { getTeachingWeek } from "@/src/config/semester";
 import { getDatabase } from "@/src/server/db";
 import {
+  courses,
   groupMembers,
   groupPrivacyOverrides,
   groups,
@@ -55,6 +56,17 @@ export async function listGroupsForUser(userId: string) {
         .innerJoin(users, eq(groupMembers.userId, users.id))
         .where(eq(groupMembers.groupId, group.id));
 
+      // 每位成员在该群学期里的课程数，用于在前端标注「未录课表」
+      const memberIds = members.map((member) => member.id);
+      const courseCounts = memberIds.length
+        ? await db
+            .select({ userId: courses.userId, count: sql<number>`count(*)::int` })
+            .from(courses)
+            .where(and(eq(courses.semesterId, group.semesterId), inArray(courses.userId, memberIds)))
+            .groupBy(courses.userId)
+        : [];
+      const countByUser = new Map(courseCounts.map((row) => [row.userId, row.count]));
+
       return {
         id: group.id,
         name: group.name,
@@ -79,7 +91,7 @@ export async function listGroupsForUser(userId: string) {
             timezone: group.timezone,
           }),
         },
-        members,
+        members: members.map((member) => ({ ...member, courseCount: countByUser.get(member.id) ?? 0 })),
       };
     }),
   );

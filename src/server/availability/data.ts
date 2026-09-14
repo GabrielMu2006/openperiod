@@ -137,7 +137,7 @@ export async function getGroupAvailability(
   selectedUserIds: string[],
 ) {
   const { dataset, privacyByUserId } = await loadAuthorizedGroupSchedule(viewerId, groupId, selectedUserIds);
-  const slots: Record<string, Record<string, { commonFree: boolean }>> = {};
+  const slots: Record<string, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number }>> = {};
 
   for (const weekday of WEEKDAYS) {
     slots[weekday] = {};
@@ -150,7 +150,7 @@ export async function getGroupAvailability(
         viewerId,
         privacyByUserId,
       });
-      slots[weekday][String(period)] = { commonFree: slot.commonFree };
+      slots[weekday][String(period)] = { commonFree: slot.commonFree, freeCount: slot.freeCount, selectedUsers: slot.selectedUsers };
     }
   }
 
