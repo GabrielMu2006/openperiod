@@ -68,21 +68,18 @@ function longDateLabel(startDate: string, week: number, weekdayIndex: number) {
   return date ? `${date.getUTCMonth() + 1}月${date.getUTCDate()}日` : "";
 }
 
-// 低饱和三段式热力配色：玉绿 → 暖纸 → 陶红；两端深、中段透气，附轻微纵向渐变提升质感
-function slotHeatStyle(pct: number, past = false) {
+// 苹果系剔透配色：翡翠绿 → 亮黄 → 珊瑚红；高亮度渐变 + 顶部玻璃高光
+function slotHeatStyle(pct: number) {
   const p = Math.min(1, Math.max(0, pct));
-  const hue = Math.round(10 + (152 - 10) * p);
+  const hue = Math.round(8 + (135 - 8) * p);
   const edge = Math.abs(p - 0.5) * 2; // 0 中段 → 1 两端
-  const sat = Math.round(19 + 17 * edge);
-  const light = Math.round(90 - 47 * edge);
-  const topLight = Math.min(96, light + 4);
-  const sheen = `linear-gradient(180deg, hsl(${hue} ${sat}% ${topLight}%) 0%, hsl(${hue} ${sat}% ${light}%) 100%)`;
+  const sat = Math.round(68 + 24 * edge);
+  const light = Math.round(88 - 34 * edge);
+  const topLight = Math.min(97, light + 7);
   return {
-    backgroundImage: past
-      ? `repeating-linear-gradient(45deg, transparent 0 6px, rgb(255 255 255 / 42%) 6px 12px), ${sheen}`
-      : sheen,
-    color: light < 62 ? "rgb(255 255 255 / 94%)" : "var(--text-primary)",
-    boxShadow: `inset 0 0 0 1px hsl(${hue} ${Math.min(40, sat + 4)}% ${Math.max(28, light - 15)}%)`,
+    backgroundImage: `linear-gradient(180deg, hsl(${hue} ${sat}% ${topLight}%) 0%, hsl(${hue} ${sat}% ${light}%) 100%)`,
+    color: light < 70 ? "rgb(255 255 255 / 95%)" : "var(--text-primary)",
+    boxShadow: `inset 0 0 0 1px hsl(${hue} ${Math.min(95, sat + 3)}% ${Math.max(30, light - 12)}%), inset 0 1px 0 rgb(255 255 255 / 35%)`,
   };
 }
 
@@ -310,7 +307,7 @@ export function CommonAvailability() {
       type="button"
       key={key}
       className={`slot${loading ? " slot-loading" : ""}${past ? " past" : ""}${extraClass}`}
-      style={loading ? undefined : slotHeatStyle(pct, past)}
+      style={loading ? undefined : slotHeatStyle(pct)}
       data-wdi={weekdayIndex}
       data-period={period}
       aria-label={ariaLabel}
@@ -395,9 +392,9 @@ export function CommonAvailability() {
                   <div className="timetable-grid" ref={gridRef} onKeyDown={onGridKeyDown}>
                     <div className="corner">节次</div>
                     {WEEKDAYS.map((day, index) => (
-                      <div className="day-heading" key={day}>
+                      <div className={`day-heading${index === todayIndex ? " today" : ""}`} key={day}>
                         <strong>周{weekdayLabels[day]}</strong>
-                        <small>{dateLabel(activeGroup.semester.startDate, week, index)}</small>
+                        <small>{dateLabel(activeGroup.semester.startDate, week, index)}{index === todayIndex && " · 今天"}</small>
                       </div>
                     ))}
                     {Array.from({ length: 12 }, (_, index) => index + 1).flatMap((period) => [
@@ -412,7 +409,7 @@ export function CommonAvailability() {
                   <div className="day-chips" role="group" aria-label="选择星期">
                     {WEEKDAYS.map((day, index) => (
                       <button type="button" key={day} className={index === activeDayIdx ? "on" : ""} aria-pressed={index === activeDayIdx} onClick={() => setDayIndex(index)}>
-                        周{weekdayLabels[day]}<small>{dateLabel(activeGroup.semester.startDate, week, index)}</small>
+                        周{weekdayLabels[day]}<small>{dateLabel(activeGroup.semester.startDate, week, index)}{index === todayIndex && " · 今天"}</small>
                       </button>
                     ))}
                   </div>
