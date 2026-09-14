@@ -1,6 +1,9 @@
 import { IdentityForm } from "@/components/identity-form";
 import { isEmailVerificationEnabled } from "@/src/server/auth/verification";
 
+// 验证开关取决于运行环境的 DirectMail 配置，不能在构建期固化
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   const verificationEnabled = isEmailVerificationEnabled();
   return (
