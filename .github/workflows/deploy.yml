@@ -1,0 +1,28 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 同步代码到服务器并重建容器
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          rsync -az --delete \
+            --exclude node_modules --exclude .next --exclude .git \
+            --exclude ".env" --exclude ".env.*" --exclude .zcode \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "root@$SERVER_HOST:/opt/openperiod/app/"
+          ssh -i ~/.ssh/deploy_key "root@$SERVER_HOST" \
+            "cd /opt/openperiod && docker compose up -d --build app && docker image prune -f"
