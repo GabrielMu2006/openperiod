@@ -10,7 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 同步代码到服务器并重建容器
+      - name: 构建 Docker 镜像（在 GitHub 的大内存机器上，不占服务器资源）
+        run: docker build -t openperiod-app:local .
+
+      - name: 导出镜像
+        run: docker save openperiod-app:local | gzip > /tmp/app-image.tar.gz
+
+      - name: 传输镜像到服务器并重启容器
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -19,10 +25,6 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
-          rsync -az --delete \
-            --exclude node_modules --exclude .next --exclude .git \
-            --exclude ".env" --exclude ".env.*" --exclude .zcode \
-            -e "ssh -i ~/.ssh/deploy_key" \
-            ./ "root@$SERVER_HOST:/opt/openperiod/app/"
+          scp -i ~/.ssh/deploy_key /tmp/app-image.tar.gz "root@$SERVER_HOST:/opt/openperiod/app-image.tar.gz"
           ssh -i ~/.ssh/deploy_key "root@$SERVER_HOST" \
-            "cd /opt/openperiod && docker compose up -d --build app && docker image prune -f"
+            "cd /opt/openperiod && docker load < app-image.tar.gz && docker compose up -d app && rm -f app-image.tar.gz && docker image prune -f"
