@@ -117,9 +117,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .legend { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; color: var(--text-secondary); font-size: 12px; }
 .legend > span { display: inline-flex; align-items: center; gap: 7px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; }
-.legend i.grad-all { background: hsl(145 58% 42%); }
-.legend i.grad-some { background: hsl(75 34% 88%); border: 1px solid hsl(75 34% 72%); }
-.legend i.grad-none { background: hsl(6 58% 42%); }
+.legend i.grad-all { background: hsl(152 36% 43%); }
+.legend i.grad-some { background: hsl(81 19% 90%); border: 1px solid hsl(81 19% 74%); }
+.legend i.grad-none { background: hsl(10 36% 43%); }
 .legend small { margin-left: auto; color: var(--text-tertiary); }
 .grid-scroller { border: 1px solid var(--border); border-radius: 12px; overflow: auto; background: var(--border); }
 .timetable-grid { min-width: 760px; display: grid; grid-template-columns: 66px repeat(7, minmax(82px, 1fr)); gap: 1px; }
@@ -127,16 +127,13 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .corner, .day-heading { height: 50px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1px; color: var(--text-secondary); font-size: 13px; font-weight: 700; }
 .corner { position: sticky; z-index: 4; left: 0; color: var(--text-tertiary); font-size: 11px; justify-content: center; }
 .day-heading small { color: var(--text-tertiary); font-size: 10px; font-weight: 550; }
-.day-heading.today { color: var(--pku-red); }
-.day-heading.today small { color: #c26265; }
 .period { position: sticky; z-index: 3; left: 0; min-height: 45px; display: flex; align-items: center; justify-content: center; gap: 2px; flex-direction: column; }
 .period strong { font-size: 13px; }
 .period .period-time { color: var(--text-tertiary); font-size: 9.5px; font-variant-numeric: tabular-nums; }
 .slot { min-height: 45px; border: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: filter 120ms ease; }
-.slot:not(.slot-loading):hover { filter: brightness(1.05) saturate(1.08); }
+.slot:not(.slot-loading):hover { filter: brightness(1.04) saturate(1.06); }
 .slot .partial-count { font-size: 11px; font-weight: 750; font-variant-numeric: tabular-nums; }
 .slot .none-mark { display: block; width: 13px; height: 2px; border-radius: 2px; background: rgb(255 255 255 / 60%); }
-.slot.past { background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgb(255 255 255 / 48%) 6px 12px); }
 .slot-loading { background: linear-gradient(100deg, #f3f1ef 30%, #faf9f8 50%, #f3f1ef 70%); background-size: 240% 100%; animation: loading-shimmer 1.2s infinite linear; cursor: wait; }
 .completeness-note { margin: 12px 0 0; color: #9a6515; font-size: 12px; }
 
