@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
 import type { PrivacyLevel } from "@/src/domain/schedule";
 
 interface SessionUser {
@@ -96,13 +97,9 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
   }
 
   return (
-    <main className="settings-page">
-      <header className="simple-header">
-        <a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a>
-        <nav aria-label="主导航"><a href="/">共同空闲</a><a href="/schedule">我的课表</a><a href="/groups">群组</a></nav>
-      </header>
+    <AppShell active="me">
       <div className="settings-content">
-        <div className="settings-heading"><div><p className="eyebrow">SETTINGS</p><h1>设置</h1><p>管理你的身份、默认隐私级别与学期信息。</p></div></div>
+        <div className="settings-heading"><div><p className="eyebrow">MY</p><h1>我的</h1><p>管理你的昵称、默认隐私级别与账户。</p></div></div>
         {pageError && <div className="page-error" role="alert">{pageError}</div>}
 
         <section className="settings-card" aria-labelledby="settings-profile">
@@ -152,6 +149,6 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
           <button className="save-button" type="button" disabled={pending || !user} onClick={save}>{pending ? "保存中…" : "保存更改"}</button>
         </div>
       </div>
-    </main>
+    </AppShell>
   );
 }

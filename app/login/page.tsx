@@ -21,6 +21,7 @@ export default function LoginPage() {
             ? "新邮箱首次登录需要输入邮件验证码，确认邮箱属于你本人。"
             : "V1 暂不验证邮箱，仅适合小规模熟人使用。请勿使用他人的邮箱。"}
         </p>
+        <p className="welcome-link"><a href="/welcome">第一次用课隙？先了解它是什么 →</a></p>
       </section>
     </main>
   );

@@ -51,9 +51,17 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .logo-mark { position: relative; display: inline-flex; gap: 4px; width: 32px; height: 32px; padding: 6px; flex: 0 0 auto; border-radius: 9px; background: var(--pku-red); overflow: hidden; }
 .logo-mark i { display: block; width: 8px; height: 20px; background: white; border-radius: 2px; }
 .logo-mark i:last-child { opacity: .72; transform: translateY(4px); }
-.group-quick { margin-left: auto; min-height: 40px; padding: 0 14px; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; color: var(--text-primary); cursor: pointer; }
+.group-quick { min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; color: var(--text-primary); cursor: pointer; }
 .group-quick span { color: var(--text-tertiary); margin-left: 12px; }
 .avatar { width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; color: white; background: var(--brand-800); font-weight: 700; text-decoration: none; cursor: pointer; }
+.topbar-end { position: relative; margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.avatar-menu { position: absolute; right: 0; top: calc(100% + 12px); z-index: 60; min-width: 216px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-card); display: grid; }
+.avatar-menu-id { padding: 10px 12px 12px; border-bottom: 1px solid var(--border); margin-bottom: 6px; display: grid; gap: 3px; }
+.avatar-menu-id strong { font-size: 14px; }
+.avatar-menu-id small { color: var(--text-tertiary); font-size: 11px; word-break: break-all; }
+.avatar-menu a, .avatar-menu button { min-height: 40px; display: flex; align-items: center; padding: 0 12px; border: 0; border-radius: 8px; color: var(--text-primary); background: transparent; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
+.avatar-menu a:hover, .avatar-menu button:hover { background: var(--surface-hover); }
+.avatar-menu button { color: var(--danger); }
 
 .sidebar {
   position: fixed; z-index: 20; left: 0; top: 64px; bottom: 0; width: var(--sidebar);
@@ -167,8 +175,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .simple-header { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .simple-header .brand { width: auto; }
 .simple-header > a:last-child { color: var(--text-secondary); font-size: 14px; text-decoration: none; }
-.groups-page { min-height: 100vh; }
-.groups-content { width: min(1120px, calc(100% - 64px)); margin: 0 auto; padding: 44px 0 70px; }
+.groups-content { width: min(1120px, 100%); margin: 0 auto; padding: 0 0 26px; }
 .groups-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .groups-heading h1 { margin: 0; font-size: 30px; }
 .groups-heading > div:first-child > p:last-child { margin: 8px 0 0; color: var(--text-secondary); font-size: 14px; }
@@ -287,7 +294,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .logo-mark { width: 30px; height: 30px; padding: 6px; }
   .logo-mark i { width: 7px; height: 18px; }
   .group-quick { display: none; }
-  .avatar { margin-left: auto; width: 34px; height: 34px; }
+  .avatar { width: 34px; height: 34px; }
   .sidebar { display: none; }
   .main-content { padding: 23px 16px 28px; }
   .page-heading { align-items: flex-start; margin-bottom: 17px; }
@@ -325,7 +332,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .simple-header { height: 56px; padding: 0 16px; }
   .simple-header .brand > span:last-child { display: flex; }
   .simple-header .brand small { display: none; }
-  .groups-content { width: calc(100% - 32px); padding: 28px 0 50px; }
+  .groups-content { width: 100%; padding: 0; }
   .groups-heading { align-items: stretch; flex-direction: column; }
   .groups-heading > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
   .groups-grid { grid-template-columns: 1fr; }
@@ -394,6 +401,20 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .link-button:disabled { color: var(--text-tertiary); cursor: default; }
 .identity-disclaimer { margin: 20px 0 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.6; }
 
+.welcome-card { display: grid; }
+.welcome-lede { margin: 10px 0 0; color: var(--text-secondary); font-size: 14px; line-height: 1.7; }
+.welcome-steps { margin: 24px 0 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+.welcome-steps li { display: flex; gap: 13px; align-items: flex-start; }
+.welcome-steps i { flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--pku-red); font-size: 13px; font-weight: 700; font-style: normal; }
+.welcome-steps strong { display: block; font-size: 14px; }
+.welcome-steps span { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.welcome-actions { margin-top: 26px; }
+.welcome-cta { min-height: 46px; display: flex; align-items: center; justify-content: center; border-radius: 10px; color: white; background: var(--pku-red); font-weight: 700; text-decoration: none; }
+.welcome-cta:hover { background: var(--brand-800); }
+.welcome-link { margin: 14px 0 0; text-align: center; }
+.welcome-link a { color: var(--pku-red); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.welcome-link a:hover { text-decoration: underline; }
+
 @media (max-width: 639px) {
   .identity-page { place-items: start center; padding-top: 11vh; }
   .identity-card { padding: 28px 22px; }
@@ -404,11 +425,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 }
 
 /* My schedule */
-.schedule-shell { min-height: 100vh; }
 .simple-header nav { display: flex; gap: 24px; }
 .simple-header nav a { color: var(--text-secondary); font-size: 13px; text-decoration: none; }
 .simple-header nav a:hover { color: var(--brand-800); }
-.schedule-page { width: min(1240px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 70px; }
+.schedule-page { width: min(1240px, 100%); margin: 0 auto; padding: 0 0 26px; }
 .schedule-page > .page-error { position: fixed; z-index: 130; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); box-shadow: var(--shadow-card); }
 .schedule-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .schedule-heading h1 { margin: 0; font-size: 30px; }
@@ -491,8 +511,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 
 @media (max-width: 639px) {
   .simple-header nav { gap: 14px; }
-  .schedule-page { width: 100%; padding: 27px 0 50px; }
-  .schedule-heading { align-items: stretch; flex-direction: column; padding: 0 16px; }
+  .schedule-page { width: 100%; padding: 0; }
+  .schedule-heading { align-items: stretch; flex-direction: column; }
   .schedule-heading h1 { font-size: 26px; }
   .schedule-heading-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .schedule-heading-actions a { grid-column: 1 / -1; justify-content: center; }
@@ -517,8 +537,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 }
 
 /* Settings */
-.settings-page { min-height: 100vh; background: var(--canvas); }
-.settings-content { width: min(680px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 90px; }
+.settings-content { width: min(680px, 100%); margin: 0 auto; padding: 0; }
 .settings-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
 .settings-heading .eyebrow { margin: 0; }
 .settings-heading h1 { margin: 6px 0 0; font-size: 32px; }
@@ -560,12 +579,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .save-button:disabled { opacity: .6; cursor: wait; }
 
 @media (max-width: 639px) {
-  .settings-content { width: 100%; padding: 27px 0 60px; }
-  .settings-heading { padding: 0 16px; }
+  .settings-content { width: 100%; padding: 0; }
   .settings-heading h1 { font-size: 26px; }
-  .settings-card { margin: 0 16px 14px; padding: 20px 16px; }
+  .settings-card { margin: 0 0 14px; padding: 20px 16px; }
   .semester-facts { grid-template-columns: 1fr; }
-  .settings-actions { padding: 0 16px; }
+  .settings-actions { padding: 0; }
   .save-button { flex: 1; }
 }
 

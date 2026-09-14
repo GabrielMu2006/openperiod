@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
 import { WEEKDAYS, type Weekday } from "@/src/domain/schedule";
 import { parseWeekRule } from "@/src/domain/week-rules";
@@ -90,13 +91,16 @@ export function MySchedule() {
   }, []);
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const query = week === null ? "" : `?week=${week}`;
-    const response = await fetch(`/api/schedule${query}`, { signal });
+    // 教学周优先从链接恢复（?week=N），链接里没有才用服务器的当前周
+    const params = new URLSearchParams(window.location.search);
+    const urlWeek = Number(params.get("week"));
+    const targetWeek = week ?? (Number.isInteger(urlWeek) && urlWeek >= 1 && urlWeek <= 16 ? urlWeek : null);
+    const response = await fetch(`/api/schedule${targetWeek === null ? "" : `?week=${targetWeek}`}`, { signal });
     if (response.status === 401) return router.replace("/login");
     const body = await response.json() as { schedule?: ScheduleDTO; error?: string };
     if (!response.ok || !body.schedule) throw new Error(body.error ?? "无法读取个人课表");
     setSchedule(body.schedule);
-    setWeek((current) => current ?? body.schedule!.week);
+    setWeek((current) => current ?? targetWeek ?? body.schedule!.week);
   }, [router, week]);
 
   useEffect(() => {
@@ -109,6 +113,14 @@ export function MySchedule() {
     return () => controller.abort();
   }, [load]);
 
+  // 当前教学周写入链接，往返后保留
+  useEffect(() => {
+    if (week === null) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("week", String(week));
+    window.history.replaceState(null, "", `/schedule?${params.toString()}`);
+  }, [week]);
+
   const visibleCourses = useMemo(() => schedule?.courses.flatMap((course) => course.meetings
     .filter((meeting) => meeting.weeks.includes(schedule.week))
     .map((meeting) => ({ course, meeting }))) ?? [], [schedule]);
@@ -120,9 +132,8 @@ export function MySchedule() {
   }
 
   return (
-    <div className="schedule-shell">
-      <header className="simple-header"><a className="brand" href="/"><span className="logo-mark"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a><nav><a href="/">共同空闲</a><a href="/groups">群组</a><a href="/settings">设置</a></nav></header>
-      <main className="schedule-page">
+    <AppShell active="schedule">
+      <div className="schedule-page">
         <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester}` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
         {error && <div className="page-error" role="alert">{error}</div>}
         {notice && <div className="page-success" role="status">{notice}</div>}
@@ -137,10 +148,10 @@ export function MySchedule() {
           </div></div>}
           <div className="my-schedule-legend"><span><i className="course" />课程</span><span><i className="busy" />私人忙碌</span><span><i className="skipped" />本周不去</span><small>私人忙碌标题与 Skip 状态不会对其他成员公开。</small></div>
         </> : !error && <div className="preview-loading">正在读取个人课表…</div>}
-      </main>
+      </div>
       {selection?.type === "course" && schedule && <CourseEditor selection={selection} week={schedule.week} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} />}
       {selection?.type === "busy" && schedule && <BusyEditor selection={selection} week={schedule.week} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} />}
-    </div>
+    </AppShell>
   );
 }
 
