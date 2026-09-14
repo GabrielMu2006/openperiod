@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
@@ -41,7 +41,7 @@ interface BusyDTO {
 
 interface ScheduleDTO {
   week: number;
-  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number };
+  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string };
   courses: CourseDTO[];
   busyBlocks: BusyDTO[];
 }
@@ -49,6 +49,7 @@ interface ScheduleDTO {
 type CourseSelection = { type: "course"; course?: CourseDTO; meetingId?: string };
 type BusySelection = { type: "busy"; block?: BusyDTO };
 type Selection = CourseSelection | BusySelection | null;
+type Notice = { text: string; undo?: () => Promise<void> } | null;
 
 function weeksText(weeks: number[]) {
   const value = weeks.join(",");
@@ -63,6 +64,22 @@ function weeksDescription(weeks: number[]) {
   if (weeks.length === 1) return `第 ${weeks[0]} 周`;
   const consecutive = weeks.every((week, index) => index === 0 || week === weeks[index - 1] + 1);
   return consecutive ? `第 ${weeks[0]}–${weeks[weeks.length - 1]} 周` : `第 ${weeks.join("、")} 周`;
+}
+
+function weekdayDateLabel(startDate: string, week: number, weekdayIndex: number) {
+  const base = Date.parse(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(base)) return "";
+  const date = new Date(base + ((week - 1) * 7 + weekdayIndex) * 86_400_000);
+  return `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+}
+
+// 在现有周次文本里翻转某一周，返回新的周次文本
+function toggleWeekInText(currentText: string, week: number) {
+  const parsed = parseWeekRule(currentText);
+  const set = new Set(parsed.recognized ? parsed.weeks : Array.from({ length: 16 }, (_, i) => i + 1));
+  if (set.has(week)) set.delete(week);
+  else set.add(week);
+  return [...set].sort((a, b) => a - b).join(",");
 }
 
 async function mutation(url: string, method: string, body?: unknown) {
@@ -82,13 +99,25 @@ export function MySchedule() {
   const [week, setWeek] = useState<number | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<Notice>(null);
+  const [snapshotId, setSnapshotId] = useState("");
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has("imported")) return;
-    setNotice("课表导入成功，已替换当前学期的课表。");
-    window.history.replaceState(null, "", "/schedule");
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("imported")) {
+      setNotice({ text: "课表导入成功，已替换当前学期的课表。" });
+      setSnapshotId(params.get("snapshot") ?? "");
+      window.history.replaceState(null, "", "/schedule");
+    }
   }, []);
+
+  // 提示条 12 秒后自动消失（撤销按钮也随之收起）
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 12_000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     // 教学周优先从链接恢复（?week=N），链接里没有才用服务器的当前周
@@ -131,12 +160,47 @@ export function MySchedule() {
     setSelection(null);
   }
 
+  function handleSkipChange(meeting: MeetingDTO, skipWeek: number, skipped: boolean) {
+    if (!schedule) return;
+    const date = weekdayDateLabel(schedule.semester.startDate, skipWeek, WEEKDAYS.indexOf(meeting.weekday));
+    setNotice({
+      text: `${skipped ? "已标记" : "已恢复"} ${date}（周${dayLabels[meeting.weekday]} 第${meeting.startPeriod}–${meeting.endPeriod}节）`,
+      undo: async () => {
+        await mutation(`/api/course-meetings/${meeting.id}/skip`, "PUT", { week: skipWeek, skipped: !skipped });
+        setNotice(null);
+        await load();
+      },
+    });
+  }
+
+  async function restoreSnapshot() {
+    if (!snapshotId || restoring) return;
+    setRestoring(true);
+    setError("");
+    try {
+      const response = await fetch("/api/import/restore", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ snapshotId }),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "恢复失败");
+      setNotice({ text: "已恢复导入前的课表。" });
+      setSnapshotId("");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "恢复失败");
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   return (
     <AppShell active="schedule">
       <div className="schedule-page">
         <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester}` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
         {error && <div className="page-error" role="alert">{error}</div>}
-        {notice && <div className="page-success" role="status">{notice}</div>}
+        {notice && <div className="page-success" role="status">{notice.text}{notice.undo && <button type="button" className="link-button" onClick={notice.undo}>撤销</button>}{snapshotId && <button type="button" className="link-button" disabled={restoring} onClick={restoreSnapshot}>{restoring ? "恢复中…" : "恢复导入前的课表"}</button>}</div>}
         {schedule && week !== null ? <>
           <div className="my-week-switcher"><button type="button" aria-label="上一周" disabled={week <= 1} onClick={() => setWeek((value) => Math.max(1, (value ?? 1) - 1))}>‹</button><strong>第 {week} 周 {week === schedule.semester.currentWeek && <em>本周</em>}</strong><button type="button" aria-label="下一周" disabled={week >= schedule.semester.weekCount} onClick={() => setWeek((value) => Math.min(schedule.semester.weekCount, (value ?? 1) + 1))}>›</button></div>
           {schedule.courses.length === 0 && schedule.busyBlocks.length === 0 ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，或手动添加第一门课程。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button></div></section> : <div className="my-grid-scroller"><div className="my-timetable">
@@ -149,40 +213,120 @@ export function MySchedule() {
           <div className="my-schedule-legend"><span><i className="course" />课程</span><span><i className="busy" />私人忙碌</span><span><i className="skipped" />本周不去</span><small>私人忙碌标题与 Skip 状态不会对其他成员公开。</small></div>
         </> : !error && <div className="preview-loading">正在读取个人课表…</div>}
       </div>
-      {selection?.type === "course" && schedule && <CourseEditor selection={selection} week={schedule.week} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} />}
-      {selection?.type === "busy" && schedule && <BusyEditor selection={selection} week={schedule.week} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} />}
+      {selection?.type === "course" && schedule && <CourseEditor selection={selection} week={schedule.week} semesterStartDate={schedule.semester.startDate} busyBlocks={schedule.busyBlocks} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} onSkipChange={handleSkipChange} />}
+      {selection?.type === "busy" && schedule && <BusyEditor selection={selection} week={schedule.week} courses={schedule.courses} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} />}
     </AppShell>
   );
 }
 
 interface EditorProps<T> { selection: T; week: number; onClose(): void; onSaved(): Promise<void>; onError(message: string): void }
 
-function CourseEditor({ selection, week, onClose, onSaved, onError }: EditorProps<CourseSelection>) {
-  const dialogRef = useDialogBehavior(true, onClose, false);
+interface CourseEditorProps extends EditorProps<CourseSelection> {
+  semesterStartDate: string;
+  busyBlocks: BusyDTO[];
+  onSkipChange(meeting: MeetingDTO, week: number, skipped: boolean): void;
+}
+
+interface BusyEditorProps extends EditorProps<BusySelection> {
+  courses: CourseDTO[];
+}
+
+interface ConflictItem { title: string; text: string }
+
+function ConflictBox({ conflicts, kind }: { conflicts: ConflictItem[]; kind: "busy" | "course" }) {
+  if (!conflicts.length) return null;
+  return (
+    <div className="conflict-box" role="alert">
+      <strong>时间冲突（{conflicts.length}）</strong>
+      <ul>{conflicts.map((conflict, index) => <li key={index}><b>{conflict.title}</b>{conflict.text}</li>)}</ul>
+      <small>{kind === "course" ? "以上私人忙碌会和这门课在相同时间重叠。" : "以上课程会和这个私人忙碌在相同时间重叠。"}</small>
+    </div>
+  );
+}
+
+function WeekQuickPicker({ value, onChange, open, onToggleOpen }: { value: string; onChange(next: string): void; open: boolean; onToggleOpen(): void }) {
+  const parsed = parseWeekRule(value);
+  const activeWeeks = new Set(parsed.recognized ? parsed.weeks : []);
+  return (
+    <div className="week-quick">
+      <button type="button" onClick={() => onChange("1-16")}>每周</button>
+      <button type="button" onClick={() => onChange("单周")}>单周</button>
+      <button type="button" onClick={() => onChange("双周")}>双周</button>
+      <button type="button" className={open ? "on" : ""} onClick={onToggleOpen}>逐周选</button>
+      {open && <div className="week-grid">{Array.from({ length: 16 }, (_, index) => index + 1).map((weekNumber) => (
+        <button type="button" key={weekNumber} className={activeWeeks.has(weekNumber) ? "on" : ""} onClick={() => onChange(toggleWeekInText(value, weekNumber))}>{weekNumber}</button>
+      ))}</div>}
+    </div>
+  );
+}
+
+function CourseEditor({ selection, week, semesterStartDate, busyBlocks, onClose, onSaved, onError, onSkipChange }: CourseEditorProps) {
   const existing = selection.course;
   const [name, setName] = useState(existing?.name ?? "");
   const [instructor, setInstructor] = useState(existing?.instructor ?? "");
   const [location, setLocation] = useState(existing?.location ?? "");
   const [meetings, setMeetings] = useState(() => (existing?.meetings ?? []).map((meeting) => ({ ...meeting, key: meeting.id, weekText: weeksText(meeting.weeks) })).concat(existing ? [] : [{ key: crypto.randomUUID(), id: "", weekday: "monday" as Weekday, startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }]));
   const [pending, setPending] = useState(false);
+  const [openWeekGrids, setOpenWeekGrids] = useState<string[]>([]);
   const activeMeeting = existing?.meetings.find((meeting) => meeting.id === selection.meetingId);
+
+  // 实时字段级校验：错误直接显示在对应输入框下方
+  const validation = useMemo(() => {
+    const errors: { name?: string; meetings: Record<string, string> } = { meetings: {} };
+    if (!name.trim()) errors.name = "请填写课程名称";
+    for (const meeting of meetings) {
+      const problems: string[] = [];
+      if (meeting.endPeriod < meeting.startPeriod) problems.push("结束节次不能早于开始节次");
+      if (!parseWeekRule(meeting.weekText).recognized) problems.push("周次无法识别");
+      if (problems.length) errors.meetings[meeting.key] = problems.join("；");
+    }
+    return errors;
+  }, [name, meetings]);
+  const hasFieldErrors = Boolean(validation.name) || Object.keys(validation.meetings).length > 0;
+
+  // 未保存修改的离开确认
+  const initialSnapshot = useRef(JSON.stringify([name, instructor, location, meetings.map((meeting) => [meeting.weekday, meeting.startPeriod, meeting.endPeriod, meeting.weekText])]));
+  const dirty = initialSnapshot.current !== JSON.stringify([name, instructor, location, meetings.map((meeting) => [meeting.weekday, meeting.startPeriod, meeting.endPeriod, meeting.weekText])]);
+  const dialogRef = useDialogBehavior(true, () => {
+    if (dirty && !window.confirm("修改还没有保存，确定要关闭吗？")) return;
+    onClose();
+  }, false);
+
+  // 与私人忙碌的时间冲突（星期相同、节次重叠、周次有交集）
+  const conflicts = useMemo(() => {
+    const items: ConflictItem[] = [];
+    for (const meeting of meetings) {
+      const weeks = parseWeekRule(meeting.weekText).weeks;
+      for (const block of busyBlocks) {
+        if (meeting.weekday !== block.weekday) continue;
+        if (meeting.startPeriod > block.endPeriod || meeting.endPeriod < block.startPeriod) continue;
+        const overlap = weeks.filter((value) => block.weeks.includes(value));
+        if (!overlap.length) continue;
+        items.push({ title: block.title || "私人忙碌", text: `：周${dayLabels[block.weekday]} 第${block.startPeriod}–${block.endPeriod}节，${overlap.length} 周重叠` });
+      }
+    }
+    return items;
+  }, [meetings, busyBlocks]);
 
   async function save() {
     onError("");
-    if (!name.trim()) return onError("请填写课程名称");
-    const normalized = meetings.map((meeting) => ({ weekday: meeting.weekday, startPeriod: Number(meeting.startPeriod), endPeriod: Number(meeting.endPeriod), weeks: parseWeekRule(meeting.weekText) }));
-    if (normalized.some((meeting) => !meeting.weeks.recognized || meeting.endPeriod < meeting.startPeriod)) return onError("请检查节次和周次设置");
+    if (hasFieldErrors || pending) return;
     setPending(true);
     try {
-      await mutation(existing ? `/api/courses/${existing.id}` : "/api/courses", existing ? "PUT" : "POST", { name, instructor, location, meetings: normalized.map((meeting) => ({ ...meeting, weeks: meeting.weeks.weeks })) });
+      const normalized = meetings.map((meeting) => ({ weekday: meeting.weekday, startPeriod: Number(meeting.startPeriod), endPeriod: Number(meeting.endPeriod), weeks: parseWeekRule(meeting.weekText).weeks }));
+      await mutation(existing ? `/api/courses/${existing.id}` : "/api/courses", existing ? "PUT" : "POST", { name, instructor, location, meetings: normalized });
       await onSaved();
     } catch (cause) { onError(cause instanceof Error ? cause.message : "保存失败"); setPending(false); }
   }
 
   async function toggleSkip() {
-    if (!activeMeeting) return;
+    if (!activeMeeting || pending) return;
     setPending(true);
-    try { await mutation(`/api/course-meetings/${activeMeeting.id}/skip`, "PUT", { week, skipped: !activeMeeting.skippedThisWeek }); await onSaved(); }
+    try {
+      await mutation(`/api/course-meetings/${activeMeeting.id}/skip`, "PUT", { week, skipped: !activeMeeting.skippedThisWeek });
+      onSkipChange(activeMeeting, week, !activeMeeting.skippedThisWeek);
+      await onSaved();
+    }
     catch (cause) { onError(cause instanceof Error ? cause.message : "设置失败"); setPending(false); }
   }
 
@@ -193,11 +337,27 @@ function CourseEditor({ selection, week, onClose, onSaved, onError }: EditorProp
     catch (cause) { onError(cause instanceof Error ? cause.message : "删除失败"); setPending(false); }
   }
 
-  return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor" role="dialog" aria-modal="true" aria-labelledby="course-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">COURSE</p><h2 id="course-editor-title">{existing ? "课程详情" : "添加课程"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body"><label>课程名称<input value={name} maxLength={200} onChange={(event) => setName(event.target.value)} autoFocus /></label><div className="editor-two"><label>教师<input value={instructor} maxLength={120} onChange={(event) => setInstructor(event.target.value)} /></label><label>地点<input value={location} maxLength={200} onChange={(event) => setLocation(event.target.value)} /></label></div><div className="meeting-editor-title"><strong>上课时段</strong><button type="button" onClick={() => setMeetings((current) => [...current, { key: crypto.randomUUID(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>{meetings.map((meeting) => <div className="schedule-meeting-row" key={meeting.key}><label>星期<select value={meeting.weekday} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: event.target.value as Weekday } : item))}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><label>开始<input type="number" min={1} max={12} value={meeting.startPeriod} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: Number(event.target.value) } : item))} /></label><label>结束<input type="number" min={1} max={12} value={meeting.endPeriod} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, endPeriod: Number(event.target.value) } : item))} /></label><label className="meeting-weeks">周次<input value={meeting.weekText} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: event.target.value } : item))} placeholder="1-16 / 单周 / 双周" /></label><button type="button" aria-label="删除此时段" disabled={meetings.length === 1} onClick={() => setMeetings((current) => current.filter((item) => item.key !== meeting.key))}>×</button></div>)}</div><footer>{existing && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除课程</button>}<span />{activeMeeting?.weeks.includes(week) && <button className="secondary-action" type="button" disabled={pending} onClick={toggleSkip}>{activeMeeting.skippedThisWeek ? "恢复本周课程" : "本周不去"}</button>}<button className="editor-save" type="button" disabled={pending} onClick={save}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
+  const skipDate = weekdayDateLabel(semesterStartDate, week, activeMeeting ? WEEKDAYS.indexOf(activeMeeting.weekday) : -1);
+
+  return <div className="editor-backdrop" onMouseDown={() => { if (dirty && !window.confirm("修改还没有保存，确定要关闭吗？")) return; onClose(); }}><section ref={dialogRef} tabIndex={-1} className="schedule-editor" role="dialog" aria-modal="true" aria-labelledby="course-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">COURSE</p><h2 id="course-editor-title">{existing ? "课程详情" : "添加课程"}</h2></div><button type="button" aria-label="关闭" onClick={() => { if (dirty && !window.confirm("修改还没有保存，确定要关闭吗？")) return; onClose(); }}>×</button></header><div className="editor-body">
+    <label>课程名称<input value={name} maxLength={200} onChange={(event) => setName(event.target.value)} autoFocus /></label>
+    {validation.name && <p className="field-error">{validation.name}</p>}
+    <div className="editor-two"><label>教师<input value={instructor} maxLength={120} onChange={(event) => setInstructor(event.target.value)} /></label><label>地点<input value={location} maxLength={200} onChange={(event) => setLocation(event.target.value)} /></label></div>
+    <ConflictBox conflicts={conflicts} kind="course" />
+    <div className="meeting-editor-title"><strong>上课时段</strong><button type="button" onClick={() => setMeetings((current) => [...current, { key: crypto.randomUUID(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
+    {meetings.map((meeting) => <div className={`schedule-meeting-row${validation.meetings[meeting.key] ? " invalid" : ""}`} key={meeting.key}>
+      <label>星期<select value={meeting.weekday} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: event.target.value as Weekday } : item))}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label>
+      <label>开始<input type="number" min={1} max={12} value={meeting.startPeriod} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: Number(event.target.value) } : item))} /></label>
+      <label>结束<input type="number" min={1} max={12} value={meeting.endPeriod} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, endPeriod: Number(event.target.value) } : item))} /></label>
+      <label className="meeting-weeks">周次<input value={meeting.weekText} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: event.target.value } : item))} placeholder="1-16 / 单周 / 双周" /></label>
+      <button type="button" aria-label="删除此时段" disabled={meetings.length === 1} onClick={() => setMeetings((current) => current.filter((item) => item.key !== meeting.key))}>×</button>
+      <WeekQuickPicker value={meeting.weekText} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: next } : item))} open={openWeekGrids.includes(meeting.key)} onToggleOpen={() => setOpenWeekGrids((current) => current.includes(meeting.key) ? current.filter((key) => key !== meeting.key) : [...current, meeting.key])} />
+      {validation.meetings[meeting.key] && <p className="field-error">{validation.meetings[meeting.key]}</p>}
+    </div>)}
+  </div><footer>{existing && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除课程</button>}<span />{activeMeeting?.weeks.includes(week) && <button className="secondary-action" type="button" disabled={pending} onClick={toggleSkip} title="只影响这一周的这一次课">{activeMeeting.skippedThisWeek ? `恢复第 ${week} 周（${skipDate}）` : `第 ${week} 周（${skipDate}）这节不去`}</button>}<button className="editor-save" type="button" disabled={pending || hasFieldErrors} onClick={save} title={hasFieldErrors ? "请先修正标红的字段" : undefined}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
 }
 
-function BusyEditor({ selection, week, onClose, onSaved, onError }: EditorProps<BusySelection>) {
-  const dialogRef = useDialogBehavior(true, onClose, false);
+function BusyEditor({ selection, week, courses, onClose, onSaved, onError }: BusyEditorProps) {
   const block = selection.block;
   // 新增时默认「仅本周」（当前查看周）；已有的一次性忙碌按自定义周展示，避免编辑时被悄悄改成当前周
   const initialRepeat = block ? (block.kind === "ONE_TIME" ? "CUSTOM" : weeksText(block.weeks) === "1-16" ? "EVERY" : weeksText(block.weeks) === "单周" ? "ODD" : weeksText(block.weeks) === "双周" ? "EVEN" : "CUSTOM") : "THIS_WEEK";
@@ -208,16 +368,36 @@ function BusyEditor({ selection, week, onClose, onSaved, onError }: EditorProps<
   const [repeat, setRepeat] = useState(initialRepeat);
   const [customWeeks, setCustomWeeks] = useState(block ? weeksText(block.weeks) : String(week));
   const [pending, setPending] = useState(false);
+  const [weekGridOpen, setWeekGridOpen] = useState(false);
+  const dialogRef = useDialogBehavior(true, () => {
+    if (pending && !window.confirm("正在保存，确定要关闭吗？")) return;
+    onClose();
+  }, false);
 
   const effectiveSource = repeat === "THIS_WEEK" ? String(week) : repeat === "EVERY" ? "1-16" : repeat === "ODD" ? "单周" : repeat === "EVEN" ? "双周" : customWeeks;
   const effectiveWeeks = parseWeekRule(effectiveSource);
+  const customInvalid = repeat === "CUSTOM" && !effectiveWeeks.recognized;
+
+  const conflicts = useMemo(() => {
+    if (!effectiveWeeks.recognized) return [];
+    const items: ConflictItem[] = [];
+    for (const course of courses) {
+      for (const meeting of course.meetings) {
+        if (weekday !== meeting.weekday) continue;
+        if (startPeriod > meeting.endPeriod || endPeriod < meeting.startPeriod) continue;
+        const overlap = effectiveWeeks.weeks.filter((value) => meeting.weeks.includes(value));
+        if (!overlap.length) continue;
+        items.push({ title: course.name, text: `：周${dayLabels[meeting.weekday]} 第${meeting.startPeriod}–${meeting.endPeriod}节，${overlap.length} 周重叠` });
+      }
+    }
+    return items;
+  }, [weekday, startPeriod, endPeriod, effectiveWeeks, courses]);
 
   async function save() {
-    const source = repeat === "THIS_WEEK" ? String(week) : repeat === "EVERY" ? "1-16" : repeat === "ODD" ? "单周" : repeat === "EVEN" ? "双周" : customWeeks;
-    const parsed = parseWeekRule(source);
-    if (!parsed.recognized || endPeriod < startPeriod) return onError("请检查节次和重复周次");
+    if (pending) return;
+    if (customInvalid || endPeriod < startPeriod) return onError("请检查节次和重复周次");
     setPending(true); onError("");
-    try { await mutation(block ? `/api/busy-blocks/${block.id}` : "/api/busy-blocks", block ? "PUT" : "POST", { kind: repeat === "THIS_WEEK" ? "ONE_TIME" : "RECURRING", title, weekday, startPeriod, endPeriod, weeks: parsed.weeks }); await onSaved(); }
+    try { await mutation(block ? `/api/busy-blocks/${block.id}` : "/api/busy-blocks", block ? "PUT" : "POST", { kind: repeat === "THIS_WEEK" ? "ONE_TIME" : "RECURRING", title, weekday, startPeriod, endPeriod, weeks: effectiveWeeks.weeks }); await onSaved(); }
     catch (cause) { onError(cause instanceof Error ? cause.message : "保存失败"); setPending(false); }
   }
 
@@ -228,6 +408,17 @@ function BusyEditor({ selection, week, onClose, onSaved, onError }: EditorProps<
     catch (cause) { onError(cause instanceof Error ? cause.message : "删除失败"); setPending(false); }
   }
 
-  return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor busy-editor" role="dialog" aria-modal="true" aria-labelledby="busy-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">PRIVATE BUSY</p><h2 id="busy-editor-title">{block ? "编辑忙碌" : "标记忙碌"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body"><label>标题（可选，仅自己可见）<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="例如：组会" autoFocus /></label><div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><label>开始<input type="number" min={1} max={12} value={startPeriod} onChange={(event) => setStartPeriod(Number(event.target.value))} /></label><label>结束<input type="number" min={1} max={12} value={endPeriod} onChange={(event) => setEndPeriod(Number(event.target.value))} /></label></div><fieldset><legend>重复</legend>{[["THIS_WEEK", "仅本周"], ["EVERY", "每周"], ["ODD", "单周"], ["EVEN", "双周"], ["CUSTOM", "自定义"]].map(([value, label]) => <label className="radio-option" key={value}><input type="radio" name="repeat" value={value} checked={repeat === value} onChange={() => setRepeat(value)} />{label}</label>)}</fieldset>{repeat === "CUSTOM" && <label>自定义周次<input value={customWeeks} onChange={(event) => setCustomWeeks(event.target.value)} placeholder="1,2,5,8,12" /></label>}<p className="busy-weeks-preview">{effectiveWeeks.recognized ? `生效教学周：${weeksDescription(effectiveWeeks.weeks)}` : "周次格式无法识别，请检查"}</p><p className="busy-privacy-note">其他成员只会看到“忙碌”，不会看到标题。</p></div><footer>{block && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除忙碌</button>}<span /><button className="editor-save" type="button" disabled={pending} onClick={save}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
+  return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor busy-editor" role="dialog" aria-modal="true" aria-labelledby="busy-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">PRIVATE BUSY</p><h2 id="busy-editor-title">{block ? "编辑忙碌" : "标记忙碌"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body">
+    <label>标题（可选，仅自己可见）<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="例如：组会" autoFocus /></label>
+    <div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><label>开始<input type="number" min={1} max={12} value={startPeriod} onChange={(event) => setStartPeriod(Number(event.target.value))} /></label><label>结束<input type="number" min={1} max={12} value={endPeriod} onChange={(event) => setEndPeriod(Number(event.target.value))} /></label></div>
+    <ConflictBox conflicts={conflicts} kind="busy" />
+    <fieldset><legend>重复</legend>{[["THIS_WEEK", "仅本周"], ["EVERY", "每周"], ["ODD", "单周"], ["EVEN", "双周"], ["CUSTOM", "自定义"]].map(([value, label]) => <label className="radio-option" key={value}><input type="radio" name="repeat" value={value} checked={repeat === value} onChange={() => setRepeat(value)} />{label}</label>)}</fieldset>
+    {repeat === "CUSTOM" && <>
+      <label>自定义周次<input value={customWeeks} onChange={(event) => setCustomWeeks(event.target.value)} placeholder="1,2,5,8,12" /></label>
+      {customInvalid && <p className="field-error">周次无法识别，请检查格式</p>}
+      <WeekQuickPicker value={customWeeks} onChange={setCustomWeeks} open={weekGridOpen} onToggleOpen={() => setWeekGridOpen((value) => !value)} />
+    </>}
+    <p className="busy-weeks-preview">{effectiveWeeks.recognized ? `生效教学周：${weeksDescription(effectiveWeeks.weeks)}` : "周次格式无法识别，请检查"}</p>
+    <p className="busy-privacy-note">其他成员只会看到“忙碌”，不会看到标题。</p>
+  </div><footer>{block && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除忙碌</button>}<span /><button className="editor-save" type="button" disabled={pending || customInvalid} onClick={save}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
 }
-

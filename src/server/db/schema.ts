@@ -14,7 +14,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { ImportPreviewPayload } from "@/src/domain/import";
+import type { ImportPreviewPayload, ImportSnapshotPayload } from "@/src/domain/import";
 
 export const groupRole = pgEnum("group_role", ["OWNER", "MEMBER"]);
 export const exceptionType = pgEnum("course_exception_type", ["SKIP"]);
@@ -207,6 +207,22 @@ export const importPreviews = pgTable(
   (table) => [
     index("import_previews_user_id_idx").on(table.userId),
     index("import_previews_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+// 导入前的课表快照：确认导入时自动写入，支持在 TTL 内一键恢复
+export const importSnapshots = pgTable(
+  "import_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    semesterId: uuid("semester_id").notNull().references(() => semesters.id, { onDelete: "cascade" }),
+    payload: jsonb("payload").$type<ImportSnapshotPayload>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("import_snapshots_user_id_idx").on(table.userId),
+    index("import_snapshots_created_at_idx").on(table.createdAt),
   ],
 );
 

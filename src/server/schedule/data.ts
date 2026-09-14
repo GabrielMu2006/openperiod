@@ -48,6 +48,7 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
       semester: semester.semester,
       currentWeek: semester.currentWeek,
       weekCount: semester.weekCount,
+      startDate: semester.startDate,
     },
     week,
     courses: courseRows.map((course) => ({

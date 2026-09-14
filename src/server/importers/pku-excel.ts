@@ -135,12 +135,14 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
       warnings.push({ id: randomUUID(), code: "INVALID_ROW", message: `无法确认“${name}”的星期或节次，已跳过`, source: rowSource });
       continue;
     }
-    if (!weekResult.recognized) warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${name}”的周次，暂按 1–16 周处理`, source: rowSource });
 
     const instructor = header.map.teacher !== undefined ? cellText(row[header.map.teacher]) : "";
     const location = header.map.location !== undefined ? cellText(row[header.map.location]) : "";
     const key = [name, instructor, location].join("\u0000");
     const course = coursesByKey.get(key) ?? { id: randomUUID(), name, instructor: instructor || undefined, location: location || undefined, meetings: [] };
+    if (!weekResult.recognized) {
+      warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${name}”的周次，暂按 1–16 周处理`, source: rowSource, courseId: course.id, field: "weeks" });
+    }
     course.meetings.push({ id: randomUUID(), weekday, startPeriod: period[0], endPeriod: period[1], weeks: weekResult.weeks, source: rowSource });
     coursesByKey.set(key, course);
   }
@@ -162,9 +164,11 @@ function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof 
       const cellSource = source(sheet, rowIndex, column);
       for (const entry of parseGridCell(text)) {
         const weeks = resolveGridWeeks(entry);
-        if (!weeks.recognized) warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${entry.name}”的周次，暂按 1–16 周处理`, source: cellSource });
         const key = [entry.name, entry.location ?? ""].join("\u0000");
         const course = coursesByKey.get(key) ?? { id: randomUUID(), name: entry.name, location: entry.location, meetings: [] };
+        if (!weeks.recognized) {
+          warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${entry.name}”的周次，暂按 1–16 周处理`, source: cellSource, courseId: course.id, field: "weeks" });
+        }
         const extendable = course.meetings.find((meeting) =>
           meeting.weekday === weekday && meeting.endPeriod === period[0] - 1 && meeting.weeks.join(",") === weeks.weeks.join(","));
         if (extendable) {
