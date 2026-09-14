@@ -67,6 +67,15 @@ git push origin main
 3. Caddy/nginx 做 HTTPS 反代（生产模式 cookie 带 `secure` 标志，必须 HTTPS 才能登录）。
 4. Vercel 项目可以保留为预览环境，生产域名 DNS 切换到国内服务器。
 
+## 管理页 /admin（仅项目所有者）
+
+`/admin` 是一个只读的站点总览页：凭管理密钥查看全站账号（邮箱、昵称、验证状态、课程/群组数）与全部群组（群主、成员数、邀请码）。不做任何修改操作。
+
+访问密钥由环境变量 `ADMIN_KEY` 控制，**未配置时接口一律拒绝**：
+
+- **Vercel**：Settings → Environment Variables 添加 `ADMIN_KEY`（强随机值，如 `openssl rand -base64 18` 生成），添加后需 Redeploy 生效。
+- **阿里云服务器**：把 `ADMIN_KEY=...` 写进 `/opt/openperiod` 的应用环境文件（compose 引用的 `.env`），然后 `docker compose up -d app`。
+
 ## 每学期运维
 
 学期配置（开学日/周数）由独立的显式流程更新，读写接口不会自动覆盖数据库：
