@@ -36,6 +36,13 @@
       "when": 1789388249869,
       "tag": "0004_schedule_presets",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789388309869,
+      "tag": "0005_custom_schedule",
+      "breakpoints": true
     }
   ]
 }

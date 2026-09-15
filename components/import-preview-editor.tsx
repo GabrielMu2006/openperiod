@@ -38,7 +38,7 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
   const [error, setError] = useState("");
   const [resolvedWarnings, setResolvedWarnings] = useState<string[]>([]);
   const [showGrid, setShowGrid] = useState(false);
-  const schedule = getScheduleById(preview?.scheduleId);
+  const schedule = preview?.schedule ?? getScheduleById(preview?.scheduleId);
 
   useEffect(() => {
     if (!previewId) return setError("缺少导入预览 ID");

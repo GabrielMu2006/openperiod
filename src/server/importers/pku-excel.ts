@@ -130,18 +130,18 @@ export function clockRangeToPeriods(
 ): [number, number] | null {
   let start: number | null = null;
   let end: number | null = null;
-  for (const row of preset.rows) {
-    if (start === null && Math.abs(rowStartMin(row) - range.startMin) <= toleranceMinutes) start = row.period;
-    if (Math.abs(rowStartMin(row) + 45 - range.endMin) <= toleranceMinutes) end = row.period;
+  for (const [index, row] of preset.rows.entries()) {
+    if (start === null && Math.abs(rowStartMin(row) - range.startMin) <= toleranceMinutes) start = index + 1;
+    if (Math.abs(rowStartMin(row) + 45 - range.endMin) <= toleranceMinutes) end = index + 1;
   }
   // 结束行兜底：找结束时刻最接近的行
   if (end === null) {
     let best = Infinity;
-    for (const row of preset.rows) {
+    for (const [index, row] of preset.rows.entries()) {
       const diff = Math.abs(rowStartMin(row) + 45 - range.endMin);
       if (diff < best) {
         best = diff;
-        end = row.period;
+        end = index + 1;
       }
     }
   }

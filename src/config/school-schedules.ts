@@ -3,7 +3,8 @@
 // 不变量：rows 按 period 1..N 连续排列、时间单调递增且互不重叠、N ≤ MAX_PERIOD_COUNT。
 
 export type ScheduleRow = {
-  period: number;
+  /** 节次号（1 起）。自定义作息行可省略，由渲染方按顺序补齐 */
+  period?: number;
   start: string;
   end: string;
   /** 网格行显示名（大节制学校的小节行没有独立名字时可省略） */
@@ -618,6 +619,58 @@ const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(
 /** 未选择学校时的回落预设（= 北大） */
 export const DEFAULT_SCHEDULE = PKU_SCHEDULE;
 
+/** API 负载里携带的作息快照（含自定义作息的行），客户端渲染网格用 */
+export interface ScheduleDTO {
+  id: string;
+  school: string;
+  kind: "period" | "block";
+  rows: ScheduleRow[];
+  blocks?: ScheduleBlock[];
+}
+
+export function toScheduleDTO(preset: SchedulePreset): ScheduleDTO {
+  return { id: preset.id, school: preset.school, kind: preset.kind, rows: preset.rows, blocks: preset.blocks };
+}
+
+/** 学期行的作息解析：custom_schedule 优先，否则按 scheduleId 查注册表 */
+export function scheduleFromSemester(input: {
+  scheduleId?: string | null;
+  customSchedule?: { start: string; end: string }[] | null;
+  school?: string | null;
+}): ScheduleDTO {
+  if (input.scheduleId === "custom" && input.customSchedule?.length) {
+    return {
+      id: "custom",
+      school: "自定义作息",
+      kind: "period",
+      rows: input.customSchedule.map((row, index) => ({ period: index + 1, start: row.start, end: row.end })),
+    };
+  }
+  return toScheduleDTO(getScheduleById(input.scheduleId));
+}
+
+/** 自定义作息行的服务端校验：1–16 行、时间合法且单调不重叠 */
+export function validateCustomRows(rows: { start: string; end: string }[]): { ok: boolean; message?: string } {
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > MAX_PERIOD_COUNT) {
+    return { ok: false, message: "自定义作息需要 1–16 节" };
+  }
+  let previousEnd = -1;
+  for (const row of rows) {
+    if (!/^\d{1,2}:\d{2}$/.test(row.start) || !/^\d{1,2}:\d{2}$/.test(row.end)) return { ok: false, message: "时间格式应为 HH:MM" };
+    const start = toMinutesLocal(row.start);
+    const end = toMinutesLocal(row.end);
+    if (end <= start) return { ok: false, message: "结束时间必须晚于开始时间" };
+    if (start < previousEnd) return { ok: false, message: "节次时间必须递增且不重叠" };
+    previousEnd = end;
+  }
+  return { ok: true };
+}
+
+function toMinutesLocal(hhmm: string) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 /** 全部预设，供导入页学校选择器使用（按 school 名排序展示） */
 export function listSchedulePresets(): SchedulePreset[] {
   return Object.values(PRESETS).sort((a, b) => a.school.localeCompare(b.school, "zh-Hans-CN"));
@@ -633,7 +686,7 @@ export function getScheduleForSemester(semester?: { scheduleId?: string | null }
   return getScheduleById(semester?.scheduleId);
 }
 
-export function schedulePeriodCount(schedule: SchedulePreset): number {
+export function schedulePeriodCount(schedule: { rows: ScheduleRow[] }): number {
   return schedule.rows.length;
 }
 
@@ -643,14 +696,14 @@ function toMinutes(hhmm: string) {
 }
 
 /** 连续节次的实际起止时间；节次越界时返回 null */
-export function periodRangeIn(schedule: SchedulePreset, startPeriod: number, endPeriod: number): { start: string; end: string } | null {
+export function periodRangeIn(schedule: { rows: ScheduleRow[] }, startPeriod: number, endPeriod: number): { start: string; end: string } | null {
   const first = schedule.rows[startPeriod - 1];
   const last = schedule.rows[endPeriod - 1];
   if (!first || !last) return null;
   return { start: first.start, end: last.end };
 }
 
-export function periodRangeMinutesIn(schedule: SchedulePreset, startPeriod: number, endPeriod: number): { startMin: number; endMin: number } | null {
+export function periodRangeMinutesIn(schedule: { rows: ScheduleRow[] }, startPeriod: number, endPeriod: number): { startMin: number; endMin: number } | null {
   const range = periodRangeIn(schedule, startPeriod, endPeriod);
   if (!range) return null;
   return { startMin: toMinutes(range.start), endMin: toMinutes(range.end) };

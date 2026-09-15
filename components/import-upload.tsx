@@ -14,7 +14,9 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [scheduleId, setScheduleId] = useState(initialScheduleId ?? "pku");
+  const [customText, setCustomText] = useState("");
 
+  const isCustom = scheduleId === "custom";
   const preset = getScheduleById(scheduleId);
   const isPku = preset.id === "pku";
 
@@ -33,8 +35,37 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
     choose(event.dataTransfer.files[0]);
   }
 
+  function parseCustomText(text: string): { start: string; end: string }[] | null {
+    const rows = text.split(/[\n;；]+/).map((line) => {
+      const times = line.trim().split(/[-~—～\s,，]+/).filter(Boolean);
+      return times.length >= 2 ? { start: times[0], end: times[1] } : null;
+    }).filter((row): row is { start: string; end: string } => row !== null);
+    return rows.length ? rows : null;
+  }
+
   async function upload() {
     if (!file) return;
+    if (isCustom) {
+      const rows = parseCustomText(customText);
+      if (!rows) return setError("自定义作息格式：每行一节，如「08:00 08:50」，至少一行");
+      setPending(true);
+      setError("");
+      const form = new FormData();
+      form.set("file", file);
+      form.set("scheduleId", "custom");
+      form.set("customRows", JSON.stringify(rows));
+      try {
+        const response = await fetch("/api/import/preview", { method: "POST", body: form });
+        const body = (await response.json()) as { preview?: { id: string }; error?: string };
+        if (response.status === 401) return router.replace("/login");
+        if (!response.ok || !body.preview) throw new Error(body.error ?? "无法解析这份课表");
+        router.push(`/import/preview?id=${body.preview.id}`);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "无法解析这份课表");
+        setPending(false);
+      }
+      return;
+    }
     setPending(true);
     setError("");
     const form = new FormData();
@@ -70,8 +101,23 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
               ))}
             </optgroup>
           ))}
+          <option value="custom">自定义作息（学校不在列表里时）</option>
         </select>
-        <small>{preset.kind === "block" ? "该校按「大节」排课，模板与解析会自动换算成小节。" : "选好学校后，请使用对应的标准模板或教务系统导出的课表。"}</small>
+        <small>{preset.kind === "block" && !isCustom ? "该校按「大节」排课，模板与解析会自动换算成小节。" : "选好学校后，请使用对应的标准模板或教务系统导出的课表。"}</small>
+        {isCustom && (
+          <div style={{ marginTop: 8 }}>
+            <label htmlFor="custom-rows" style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>自定义作息时间表</label>
+            <textarea
+              id="custom-rows"
+              value={customText}
+              onChange={(event) => setCustomText(event.target.value)}
+              rows={6}
+              placeholder={"每行一节，按顺序填写起止时间：\n08:00 08:50\n09:00 09:50\n10:10 11:00"}
+              style={{ width: "100%", marginTop: 6, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10, fontVariantNumeric: "tabular-nums", fontSize: 13 }}
+            />
+            <small style={{ color: "var(--text-tertiary)", fontSize: 12 }}>最多 16 节；时间必须递增。Excel 里的节次号将按这里的顺序对应。</small>
+          </div>
+        )}
       </div>
       <div
         className={`dropzone ${dragging ? "dragging" : ""}`}
@@ -89,9 +135,11 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="upload-actions">
-        {isPku
-          ? <a href="/OpenPeriod-PKU-Template.xlsx" download>下载标准模板（北大教务课表格式）</a>
-          : <a href={`/api/import/template?school=${preset.id}`}>下载标准模板（{preset.school}格式）</a>}
+        {isCustom
+          ? <span className="admin-note">使用上面的时间表作为节次网格，配合任意「节次/时间」格式课表导入。</span>
+          : isPku
+            ? <a href="/OpenPeriod-PKU-Template.xlsx" download>下载标准模板（北大教务课表格式）</a>
+            : <a href={`/api/import/template?school=${preset.id}`}>下载标准模板（{preset.school}格式）</a>}
         <button type="button" disabled={!file || pending} onClick={upload}>{pending ? "正在解析…" : "解析并预览"}</button>
       </div>
     </div>

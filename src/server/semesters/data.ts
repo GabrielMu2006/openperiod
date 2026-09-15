@@ -12,10 +12,11 @@ import { semesters } from "@/src/server/db/schema";
 // 存量数据不变）。开学日/周数暂与北大默认一致，各校差异由 applySemesterConfig 或
 // 预设默认值后续补充。
 export async function ensureDefaultSemester(scheduleId?: string | null) {
+  const isCustom = scheduleId === "custom";
   const preset = getScheduleById(scheduleId);
-  const isDefault = preset.id === PKU_SCHEDULE.id;
-  const schoolKey = isDefault ? DEFAULT_SEMESTER.school : preset.id;
-  const scheduleColumnValue = isDefault ? null : preset.id;
+  const isDefault = !isCustom && preset.id === PKU_SCHEDULE.id;
+  const schoolKey = isDefault ? DEFAULT_SEMESTER.school : isCustom ? "custom" : preset.id;
+  const scheduleColumnValue = isDefault ? null : isCustom ? "custom" : preset.id;
 
   const database = getDatabase();
   const [existing] = await database
@@ -69,6 +70,18 @@ async function createDefaultSemester(
     .limit(1);
   if (!semester) throw new Error("Failed to initialize semester");
   return semester;
+}
+
+// 自定义作息：写到用户自己的 custom 学期行上（没有则创建）
+export async function ensureCustomSemester(rows: { start: string; end: string }[]) {
+  const semester = await ensureDefaultSemester("custom");
+  const [updated] = await getDatabase()
+    .update(semesters)
+    .set({ customSchedule: rows })
+    .where(eq(semesters.id, semester.id))
+    .returning();
+  if (!updated) throw new Error("Failed to save custom schedule");
+  return { ...updated, currentWeek: getTeachingWeek(updated) };
 }
 
 export interface SemesterConfigPatch {

@@ -79,6 +79,8 @@ export const semesters = pgTable(
     timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
     // 作息预设 id（school-schedules.ts 里的 key）；null = 早期数据，按北大默认处理
     scheduleId: varchar("schedule_id", { length: 64 }),
+    // 自定义作息行（schedule_id = "custom" 时生效）
+    customSchedule: jsonb("custom_schedule").$type<{ start: string; end: string; label?: string }[]>(),
   },
   (table) => [
     unique("semesters_school_year_term_unique").on(table.school, table.academicYear, table.semester),

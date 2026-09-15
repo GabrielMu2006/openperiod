@@ -42,7 +42,7 @@ interface BusyDTO {
 
 interface ScheduleDTO {
   week: number;
-  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; scheduleId?: string | null };
+  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; scheduleId?: string | null; schedule?: { rows: { start: string; end: string; label?: string }[] } };
   courses: CourseDTO[];
   busyBlocks: BusyDTO[];
 }
@@ -105,7 +105,7 @@ export function MySchedule() {
   const [restoring, setRestoring] = useState(false);
   const [swipeHintVisible, setSwipeHintVisible] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
-  const mySchedule = getScheduleForSemester(schedule?.semester);
+  const mySchedule = schedule?.semester.schedule ?? getScheduleForSemester(schedule?.semester);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

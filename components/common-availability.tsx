@@ -19,7 +19,7 @@ interface GroupDTO {
   inviteCode: string;
   role: "OWNER" | "MEMBER";
   privacyLevel: 0 | 1 | 2 | null;
-  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; timezone: string; scheduleId?: string | null };
+  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; timezone: string; scheduleId?: string | null; schedule?: { rows: { start: string; end: string }[] } };
   members: { id: string; nickname: string; courseCount: number }[];
 }
 
@@ -276,7 +276,7 @@ export function CommonAvailability() {
   const isCurrentWeekView = activeGroup !== null && week === activeGroup.semester.currentWeek;
   const todayIndex = activeGroup && isCurrentWeekView ? weekdayIndexNowIn(activeGroup.semester.timezone) : -1;
   const activeDayIdx = dayIndex ?? (todayIndex >= 0 ? todayIndex : 0);
-  const schedule = getScheduleForSemester(activeGroup?.semester);
+  const schedule = activeGroup?.semester.schedule ?? getScheduleForSemester(activeGroup?.semester);
   const nowMinutes = useMemo(
     () => (activeGroup ? minutesNowIn(activeGroup.semester.timezone) : 0),
     [activeGroup, grid],

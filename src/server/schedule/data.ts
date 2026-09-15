@@ -6,6 +6,7 @@ import { getDatabase } from "@/src/server/db";
 import { busyBlocks, courseExceptions, courseMeetings, courses, users } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
 import { ensureDefaultSemester } from "@/src/server/semesters/data";
+import { scheduleFromSemester } from "@/src/config/school-schedules";
 
 // 用户的学期跟随其学校作息；未设置学校时回落北大默认
 async function ensureUserSemester(userId: string) {
@@ -60,6 +61,7 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
       weekCount: semester.weekCount,
       startDate: semester.startDate,
       scheduleId: semester.scheduleId,
+      schedule: scheduleFromSemester({ scheduleId: semester.scheduleId, customSchedule: semester.customSchedule }),
     },
     week,
     courses: courseRows.map((course) => ({

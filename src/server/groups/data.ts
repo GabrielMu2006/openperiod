@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { generateInviteCode, normalizeInviteCode } from "@/src/domain/groups";
 import type { PrivacyLevel } from "@/src/domain/schedule";
 import { getTeachingWeek } from "@/src/config/semester";
+import { scheduleFromSemester } from "@/src/config/school-schedules";
 import { getDatabase } from "@/src/server/db";
 import {
   courses,
@@ -35,6 +36,7 @@ export async function listGroupsForUser(userId: string) {
       weekCount: semesters.weekCount,
       timezone: semesters.timezone,
       scheduleId: semesters.scheduleId,
+      customSchedule: semesters.customSchedule,
       privacyLevel: groupPrivacyOverrides.privacyLevel,
     })
     .from(groupMembers)
@@ -83,6 +85,7 @@ export async function listGroupsForUser(userId: string) {
           weekCount: group.weekCount,
           timezone: group.timezone,
           scheduleId: group.scheduleId,
+          schedule: scheduleFromSemester({ scheduleId: group.scheduleId, customSchedule: group.customSchedule }),
           currentWeek: getTeachingWeek({
             id: group.semesterId,
             school: group.school,

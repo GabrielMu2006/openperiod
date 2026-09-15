@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { WEEKDAYS, type PrivacyLevel, type Weekday } from "@/src/domain/schedule";
-import { getScheduleById, type SchedulePreset } from "@/src/config/school-schedules";
+import { getScheduleById, scheduleFromSemester, type SchedulePreset } from "@/src/config/school-schedules";
 import { getDatabase } from "@/src/server/db";
 import {
   busyBlocks,
@@ -124,6 +124,7 @@ async function loadAuthorizedGroupSchedule(
     .select({
       semesterId: groups.semesterId,
       groupScheduleId: semesters.scheduleId,
+      groupCustomSchedule: semesters.customSchedule,
       groupStartDate: semesters.startDate,
       groupAcademicYear: semesters.academicYear,
       groupSemester: semesters.semester,
@@ -135,7 +136,9 @@ async function loadAuthorizedGroupSchedule(
     .limit(1);
 
   if (!membership) throw new HttpError(404, "群组不存在或你不是群组成员");
-  const groupSchedule = getScheduleById(membership.groupScheduleId);
+  const groupSchedule: SchedulePreset = membership.groupCustomSchedule?.length
+    ? scheduleFromSemester({ scheduleId: "custom", customSchedule: membership.groupCustomSchedule })
+    : getScheduleById(membership.groupScheduleId);
 
   const memberRows = await db
     .select({
@@ -165,10 +168,11 @@ async function loadAuthorizedGroupSchedule(
   // 每位成员各自学校的学期（同学年/同学期名称），课表数据从各自的学期读取
   const members = await Promise.all(
     memberRows.map(async (member) => {
+      const isCustom = member.userScheduleId === "custom";
       const preset = getScheduleById(member.userScheduleId);
-      const schoolKey = preset.id === "pku" ? "PKU" : preset.id;
+      const schoolKey = isCustom ? "custom" : preset.id === "pku" ? "PKU" : preset.id;
       const [memberSemester] = await db
-        .select({ id: semesters.id, startDate: semesters.startDate, weekCount: semesters.weekCount })
+        .select({ id: semesters.id, startDate: semesters.startDate, weekCount: semesters.weekCount, scheduleId: semesters.scheduleId, customSchedule: semesters.customSchedule })
         .from(semesters)
         .where(and(
           eq(semesters.school, schoolKey),
@@ -209,8 +213,11 @@ async function loadAuthorizedGroupSchedule(
         .from(busyBlocks)
         .where(and(eq(busyBlocks.userId, member.id), eq(busyBlocks.semesterId, memberSemester.id)));
 
+      const memberSchedule: SchedulePreset = memberSemester.customSchedule?.length
+        ? scheduleFromSemester({ scheduleId: "custom", customSchedule: memberSemester.customSchedule })
+        : preset;
       const ranges = buildMemberRanges({
-        memberSchedule: preset,
+        memberSchedule,
         memberStartDate: memberSemester.startDate,
         memberWeekCount: memberSemester.weekCount,
         groupStartDate: membership.groupStartDate,

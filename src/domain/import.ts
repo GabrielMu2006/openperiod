@@ -43,6 +43,8 @@ export interface ImportPreviewPayload {
   format: ImportFormat;
   /** 导入时选择的作息预设；缺省 = 北大默认 */
   scheduleId?: string;
+  /** 作息快照（含自定义作息），客户端网格以此为准 */
+  schedule?: { id: string; school: string; kind: "period" | "block"; rows: { period?: number; start: string; end: string; label?: string }[]; blocks?: { label: string; from: number; to: number }[] };
   courses: ImportCourseDraft[];
   warnings: ImportWarning[];
   stats: { courseCount: number; meetingCount: number; warningCount: number };
