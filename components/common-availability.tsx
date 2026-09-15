@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
-import { getScheduleForSemester, periodRangeIn, periodRangeMinutesIn } from "@/src/config/school-schedules";
+import { getScheduleById, getScheduleForSemester, periodRangeIn, periodRangeMinutesIn } from "@/src/config/school-schedules";
 import { buildFreeRuns, formatDuration, type FreeRun } from "@/src/domain/free-runs";
 import { WEEKDAYS, type AvailabilitySlot, type Weekday } from "@/src/domain/schedule";
 
@@ -20,7 +20,7 @@ interface GroupDTO {
   role: "OWNER" | "MEMBER";
   privacyLevel: 0 | 1 | 2 | null;
   semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; timezone: string; scheduleId?: string | null; schedule?: { rows: { start: string; end: string }[] } };
-  members: { id: string; nickname: string; courseCount: number }[];
+  members: { id: string; nickname: string; courseCount: number; scheduleId?: string | null }[];
 }
 
 interface GridResponse {
@@ -385,7 +385,7 @@ export function CommonAvailability() {
             </div></div>
           </div>
 
-          <div className="member-bar"><div><strong>参与成员</strong><span>已选择 {selectedIds.length} / {members.length} 人</span></div><div className="member-chips"><button type="button" className={selectedIds.length === members.length ? "selected" : ""} onClick={() => setSelectedIds(selectedIds.length === members.length ? [] : members.map((member) => member.id))}>{selectedIds.length === members.length ? "取消全选" : "全选"}</button>{(members.length > 6 && !membersExpanded ? members.slice(0, 5) : members).map((member) => { const selected = selectedIds.includes(member.id); return <button type="button" className={selected ? "selected" : ""} aria-pressed={selected} title={member.courseCount === 0 ? "该成员尚未录入课表，按全天空闲计算" : undefined} onClick={() => toggleMember(member.id)} key={member.id}>{selected && <span>✓</span>}{member.nickname}{member.courseCount === 0 && <em className="chip-flag">未录</em>}</button>; })}{members.length > 6 && <button type="button" className="members-toggle" aria-expanded={membersExpanded} onClick={() => setMembersExpanded((value) => !value)}>{membersExpanded ? "收起" : `全部 ${members.length} 人`}</button>}</div></div>
+          <div className="member-bar"><div><strong>参与成员</strong><span>已选择 {selectedIds.length} / {members.length} 人</span></div><div className="member-chips"><button type="button" className={selectedIds.length === members.length ? "selected" : ""} onClick={() => setSelectedIds(selectedIds.length === members.length ? [] : members.map((member) => member.id))}>{selectedIds.length === members.length ? "取消全选" : "全选"}</button>{(members.length > 6 && !membersExpanded ? members.slice(0, 5) : members).map((member) => { const selected = selectedIds.includes(member.id); return <button type="button" className={selected ? "selected" : ""} aria-pressed={selected} title={member.courseCount === 0 ? "该成员尚未录入课表，按全天空闲计算" : undefined} onClick={() => toggleMember(member.id)} key={member.id}>{selected && <span>✓</span>}{member.nickname}{member.scheduleId && member.scheduleId !== "pku" && <em className="chip-flag">{getScheduleById(member.scheduleId).school}</em>}{member.courseCount === 0 && <em className="chip-flag">未录</em>}</button>; })}{members.length > 6 && <button type="button" className="members-toggle" aria-expanded={membersExpanded} onClick={() => setMembersExpanded((value) => !value)}>{membersExpanded ? "收起" : `全部 ${members.length} 人`}</button>}</div></div>
 
           {selectedIds.length === 0 ? <div className="empty-state"><Logo /><h2>请选择至少一位成员</h2><p>选择成员后，这里会立即显示共同空闲。</p></div> : (
             <div className="timetable-wrap">

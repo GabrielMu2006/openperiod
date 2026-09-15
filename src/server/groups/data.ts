@@ -54,7 +54,7 @@ export async function listGroupsForUser(userId: string) {
   return Promise.all(
     memberships.map(async (group) => {
       const members = await db
-        .select({ id: users.id, nickname: users.nickname })
+        .select({ id: users.id, nickname: users.nickname, scheduleId: users.scheduleId })
         .from(groupMembers)
         .innerJoin(users, eq(groupMembers.userId, users.id))
         .where(eq(groupMembers.groupId, group.id));
