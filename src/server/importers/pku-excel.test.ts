@@ -93,6 +93,22 @@ describe("PkuExcelImporter", () => {
     expect(result.warnings[0]).toMatchObject({ code: "MISSING_WEEKS", source: "课表 / E2" });
   });
 
+  it("parses clock-time columns against the school grid", () => {
+    const result = parseWorkbookSheets([{ sheet: "课表", data: [
+      ["课程名称", "教师", "地点", "星期", "时间", "周次"],
+      ["宏观经济学", "赵老师", "诚信楼 201", "周二", "08:00-09:30", "1-16"],
+      ["计量经济学", "钱老师", "科研楼 510", "周四", "15:20-16:50", "1-16"],
+    ] }], UIBE_SCHEDULE);
+
+    expect(result.stats.warningCount).toBe(0);
+    const macro = result.courses.find((course) => course.name === "宏观经济学");
+    // 08:00-09:30 → 第一大节 = 小节 1-2
+    expect(macro?.meetings[0]).toMatchObject({ weekday: "tuesday", startPeriod: 1, endPeriod: 2 });
+    const metrics = result.courses.find((course) => course.name === "计量经济学");
+    // 15:20-16:50 → 第四大节前两节 = 小节 8-9
+    expect(metrics?.meetings[0]).toMatchObject({ weekday: "thursday", startPeriod: 8, endPeriod: 9 });
+  });
+
   it("expands UIBE 大节 rows into small periods", () => {
     const result = parseWorkbookSheets([{ sheet: "课表", data: [
       ["课程名称", "教师", "地点", "星期", "大节", "节数", "周次"],

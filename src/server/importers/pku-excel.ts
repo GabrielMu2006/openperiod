@@ -37,6 +37,7 @@ const headerAliases = {
   weeks: ["weeks", "周次", "上课周次"],
   block: ["block", "大节", "上课大节"],
   lessonCount: ["lessoncount", "节数", "课时", "上课节数"],
+  timeRange: ["timerange", "时间", "时间段", "上课时间"],
 } as const;
 
 type HeaderKey = keyof typeof headerAliases;
@@ -103,6 +104,55 @@ function parseBlockNumber(value: string): number | null {
   return null;
 }
 
+// 「08:00–09:30」「9:50~11:20」等时间区间
+export function parseClockRange(value: string): { startMin: number; endMin: number } | null {
+  const numbers = [...value.matchAll(/(\d{1,2}):(\d{2})/g)].map((match) => Number(match[1]) * 60 + Number(match[2]));
+  if (numbers.length < 2) return null;
+  const [startMin, endMin] = numbers;
+  if (endMin <= startMin || startMin < 0 || endMin > 24 * 60) return null;
+  return { startMin, endMin };
+}
+
+function rowStartMin(row: { start: string; end: string }) {
+  return toMinutes(row.start);
+}
+
+function toMinutes(hhmm: string) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+// 把钟点区间匹配到预设网格：起止各允许 ±20 分钟的容差
+export function clockRangeToPeriods(
+  range: { startMin: number; endMin: number },
+  preset: SchedulePreset,
+  toleranceMinutes = 20,
+): [number, number] | null {
+  let start: number | null = null;
+  let end: number | null = null;
+  for (const row of preset.rows) {
+    if (start === null && Math.abs(rowStartMin(row) - range.startMin) <= toleranceMinutes) start = row.period;
+    if (Math.abs(rowStartMin(row) + 45 - range.endMin) <= toleranceMinutes) end = row.period;
+  }
+  // 结束行兜底：找结束时刻最接近的行
+  if (end === null) {
+    let best = Infinity;
+    for (const row of preset.rows) {
+      const diff = Math.abs(rowStartMin(row) + 45 - range.endMin);
+      if (diff < best) {
+        best = diff;
+        end = row.period;
+      }
+    }
+  }
+  if (start === null || end === null || end < start) return null;
+  return [start, end];
+}
+
+function mapHasPeriodColumns(map: HeaderMap) {
+  return map.period !== undefined || (map.startPeriod !== undefined && map.endPeriod !== undefined);
+}
+
 function findRowHeader(sheet: SheetData, preset: SchedulePreset) {
   for (let rowIndex = 0; rowIndex < Math.min(20, sheet.data.length); rowIndex += 1) {
     const map: HeaderMap = {};
@@ -114,7 +164,8 @@ function findRowHeader(sheet: SheetData, preset: SchedulePreset) {
     });
     const byPeriod = map.period !== undefined || (map.startPeriod !== undefined && map.endPeriod !== undefined);
     const byBlock = map.block !== undefined;
-    if (map.course !== undefined && map.weekday !== undefined && (byPeriod || byBlock)) {
+    const byTime = map.timeRange !== undefined;
+    if (map.course !== undefined && map.weekday !== undefined && (byPeriod || byBlock || byTime)) {
       return { rowIndex, map };
     }
   }
@@ -158,7 +209,15 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
     const rowSource = source(sheet, rowIndex, header.map.course!);
     const weekday = parseWeekday(cellText(row[header.map.weekday!]));
     let period: [number, number] | null = null;
-    if (header.map.block !== undefined) {
+    if (header.map.timeRange !== undefined && header.map.block === undefined && mapHasPeriodColumns(header.map) === false) {
+      // 时钟时间模式：任意学校的「时间」列（09:50-11:20）换算成节次
+      const range = parseClockRange(cellText(row[header.map.timeRange]));
+      period = range ? clockRangeToPeriods(range, preset) : null;
+      if (!period) {
+        warnings.push({ id: randomUUID(), code: "INVALID_ROW", message: `无法把“${name}”的上课时间匹配到作息网格，已跳过`, source: rowSource });
+        continue;
+      }
+    } else if (header.map.block !== undefined) {
       // 大节制（如对外经贸）：大节号 + 节数（缺省 2）→ 展开为小节区间
       const blockNumber = parseBlockNumber(cellText(row[header.map.block]));
       const block = blockNumber !== null ? preset.blocks?.[blockNumber - 1] : undefined;
