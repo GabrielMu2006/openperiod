@@ -4,8 +4,8 @@ import { WEEKDAYS } from "./schedule";
 const meetingDraftSchema = z.object({
   id: z.string().min(1).max(80),
   weekday: z.enum(WEEKDAYS),
-  startPeriod: z.number().int().min(1).max(12),
-  endPeriod: z.number().int().min(1).max(12),
+  startPeriod: z.number().int().min(1).max(16),
+  endPeriod: z.number().int().min(1).max(16),
   weeks: z.array(z.number().int().min(1).max(16)).min(1).max(16),
   source: z.string().max(200),
 }).refine((meeting) => meeting.endPeriod >= meeting.startPeriod, {

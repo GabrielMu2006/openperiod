@@ -1,40 +1,55 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { DEFAULT_SEMESTER, getTeachingWeek } from "@/src/config/semester";
+import { PKU_SCHEDULE, getScheduleById } from "@/src/config/school-schedules";
 import { getDatabase } from "@/src/server/db";
 import { semesters } from "@/src/server/db/schema";
 
 // 读路径专用：学期存在就原样返回，不存在才按默认配置创建，绝不覆盖已有配置。
 // 修改开学日/周数请走 applySemesterConfig（独立维护流程），不要在这里加更新逻辑。
-export async function ensureDefaultSemester() {
+//
+// 多学校支持：每所学校各自一条学期记录（school 列 = 预设 id，北大沿用历史值保持
+// 存量数据不变）。开学日/周数暂与北大默认一致，各校差异由 applySemesterConfig 或
+// 预设默认值后续补充。
+export async function ensureDefaultSemester(scheduleId?: string | null) {
+  const preset = getScheduleById(scheduleId);
+  const isDefault = preset.id === PKU_SCHEDULE.id;
+  const schoolKey = isDefault ? DEFAULT_SEMESTER.school : preset.id;
+  const scheduleColumnValue = isDefault ? null : preset.id;
+
   const database = getDatabase();
   const [existing] = await database
     .select()
     .from(semesters)
     .where(and(
-      eq(semesters.school, DEFAULT_SEMESTER.school),
+      eq(semesters.school, schoolKey),
       eq(semesters.academicYear, DEFAULT_SEMESTER.academicYear),
       eq(semesters.semester, DEFAULT_SEMESTER.semester),
     ))
     .limit(1);
 
-  const semester = existing ?? (await createDefaultSemester(database));
+  const semester = existing ?? (await createDefaultSemester(database, schoolKey, scheduleColumnValue));
   return {
     ...semester,
     currentWeek: getTeachingWeek(semester),
   };
 }
 
-async function createDefaultSemester(database: ReturnType<typeof getDatabase>) {
+async function createDefaultSemester(
+  database: ReturnType<typeof getDatabase>,
+  schoolKey: string,
+  scheduleColumnValue: string | null,
+) {
   const [created] = await database
     .insert(semesters)
     .values({
-      school: DEFAULT_SEMESTER.school,
+      school: schoolKey,
       academicYear: DEFAULT_SEMESTER.academicYear,
       semester: DEFAULT_SEMESTER.semester,
       startDate: DEFAULT_SEMESTER.startDate,
       weekCount: DEFAULT_SEMESTER.weekCount,
       timezone: DEFAULT_SEMESTER.timezone,
+      scheduleId: scheduleColumnValue,
     })
     .onConflictDoNothing({
       target: [semesters.school, semesters.academicYear, semesters.semester],
@@ -47,7 +62,7 @@ async function createDefaultSemester(database: ReturnType<typeof getDatabase>) {
     .select()
     .from(semesters)
     .where(and(
-      eq(semesters.school, DEFAULT_SEMESTER.school),
+      eq(semesters.school, schoolKey),
       eq(semesters.academicYear, DEFAULT_SEMESTER.academicYear),
       eq(semesters.semester, DEFAULT_SEMESTER.semester),
     ))

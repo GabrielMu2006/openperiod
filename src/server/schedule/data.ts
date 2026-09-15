@@ -3,9 +3,19 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { z } from "zod";
 import type { Weekday } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
-import { busyBlocks, courseExceptions, courseMeetings, courses } from "@/src/server/db/schema";
+import { busyBlocks, courseExceptions, courseMeetings, courses, users } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
 import { ensureDefaultSemester } from "@/src/server/semesters/data";
+
+// 用户的学期跟随其学校作息；未设置学校时回落北大默认
+async function ensureUserSemester(userId: string) {
+  const [user] = await getDatabase()
+    .select({ scheduleId: users.scheduleId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return ensureDefaultSemester(user?.scheduleId);
+}
 import type { busyMutationSchema, courseMutationSchema } from "./validation";
 import { diffCourseMeetings } from "./meeting-diff";
 
@@ -24,7 +34,7 @@ const weekdayFromNumber: Record<number, Weekday> = {
 
 export async function getMySchedule(userId: string, requestedWeek?: number) {
   const db = getDatabase();
-  const semester = await ensureDefaultSemester();
+  const semester = await ensureUserSemester(userId);
   const week = requestedWeek ?? semester.currentWeek;
   const courseRows = await db.select().from(courses)
     .where(and(eq(courses.userId, userId), eq(courses.semesterId, semester.id)));
@@ -80,7 +90,7 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
 
 export async function createCourse(userId: string, input: CourseInput) {
   const db = getDatabase();
-  const semester = await ensureDefaultSemester();
+  const semester = await ensureUserSemester(userId);
   return db.transaction(async (tx) => {
     const [course] = await tx.insert(courses).values({
       userId, semesterId: semester.id, name: input.name,
@@ -148,7 +158,7 @@ export async function setMeetingSkipped(userId: string, meetingId: string, week:
 }
 
 export async function createBusyBlock(userId: string, input: BusyInput) {
-  const semester = await ensureDefaultSemester();
+  const semester = await ensureUserSemester(userId);
   const [block] = await getDatabase().insert(busyBlocks).values({
     userId, semesterId: semester.id, kind: input.kind, title: input.title || null,
     weekday: weekdayNumber[input.weekday], startPeriod: input.startPeriod,

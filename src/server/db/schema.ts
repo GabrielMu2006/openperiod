@@ -27,6 +27,8 @@ export const users = pgTable(
     nickname: varchar("nickname", { length: 80 }).notNull(),
     email: varchar("email", { length: 320 }).notNull(),
     defaultPrivacyLevel: integer("default_privacy_level").notNull().default(1),
+    // 用户默认作息预设（导入页/建群时的学校标签）；null = 未设置
+    scheduleId: varchar("schedule_id", { length: 64 }),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

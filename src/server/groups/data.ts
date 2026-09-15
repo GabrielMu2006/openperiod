@@ -100,7 +100,13 @@ export async function listGroupsForUser(userId: string) {
 }
 
 export async function createGroup(userId: string, name: string, privacyLevel: PrivacyLevel | null) {
-  const semester = await ensureDefaultSemester();
+  // 群组挂到群主学校的学期上，节次网格随群主学校的作息预设
+  const [owner] = await getDatabase()
+    .select({ scheduleId: users.scheduleId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const semester = await ensureDefaultSemester(owner?.scheduleId);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { listSchedulePresets } from "@/src/config/school-schedules";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import type { PrivacyLevel } from "@/src/domain/schedule";
@@ -8,6 +9,7 @@ import type { PrivacyLevel } from "@/src/domain/schedule";
 interface SessionUser {
   id: string;
   nickname: string;
+  scheduleId?: string | null;
   email: string;
   defaultPrivacyLevel: PrivacyLevel;
   emailVerifiedAt: string | null;
@@ -30,6 +32,7 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [nickname, setNickname] = useState("");
+  const [scheduleId, setScheduleId] = useState("pku");
   const [privacy, setPrivacy] = useState<PrivacyLevel>(1);
   const [pageError, setPageError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -49,7 +52,9 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
         const body = (await response.json()) as { user: SessionUser };
         setUser(body.user);
         setNickname(body.user.nickname);
+        setScheduleId(body.user.scheduleId ?? "pku");
         setPrivacy(body.user.defaultPrivacyLevel);
+      setScheduleId(body.user.scheduleId ?? "pku");
       })
       .catch((cause) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -72,13 +77,14 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
       const response = await fetch("/api/auth/profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nickname, defaultPrivacyLevel: privacy }),
+        body: JSON.stringify({ nickname, defaultPrivacyLevel: privacy, scheduleId }),
       });
       const body = (await response.json()) as { user?: SessionUser; error?: string };
       if (!response.ok || !body.user) throw new Error(body.error ?? "保存失败");
       setUser(body.user);
       setNickname(body.user.nickname);
       setPrivacy(body.user.defaultPrivacyLevel);
+      setScheduleId(body.user.scheduleId ?? "pku");
       setSaved(true);
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : "保存失败");
@@ -112,6 +118,22 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
             <output className="settings-static">{user?.email ?? "…"}</output>
             <p className="settings-note">{user?.emailVerifiedAt ? "邮箱已验证，之后在其他设备登录也无需再次验证。" : "邮箱尚未验证：下次登录时需要输入邮件验证码。"}</p>
           </div>
+        </section>
+
+        <section className="settings-card" aria-labelledby="settings-school">
+          <h2 id="settings-school">我的学校</h2>
+          <p className="settings-note">决定课表的节次网格与导入模板；之后新建的群组会使用这所学校的作息。</p>
+          <select
+            className="settings-school-select"
+            value={scheduleId}
+            disabled={!user}
+            aria-label="我的学校"
+            onChange={(event) => { setScheduleId(event.target.value); setSaved(false); setSaveError(""); }}
+          >
+            {listSchedulePresets().map((preset) => (
+              <option value={preset.id} key={preset.id}>{preset.school}{preset.variant ? `（${preset.variant}）` : ""}</option>
+            ))}
+          </select>
         </section>
 
         <section className="settings-card" aria-labelledby="settings-privacy">

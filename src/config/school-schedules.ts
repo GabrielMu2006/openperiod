@@ -51,8 +51,41 @@ export const PKU_SCHEDULE: SchedulePreset = {
   ],
 };
 
+// 对外经济贸易大学：5 大节制（每大节 2 或 3 小节连堂）。
+// 来源：教务处《关于调整全校本科教学作息时间的通知》
+// 一 08:00–09:30｜二 09:50–11:20 或 09:50–12:10｜三 13:30–15:00｜四 15:20–16:50 或 –17:40｜五 18:30–20:00 或 –20:50
+// 大节拆小节规则：按大节时长均分；三节大节的第 3 小节 = 大节尾段。
+export const UIBE_SCHEDULE: SchedulePreset = {
+  id: "uibe",
+  school: "对外经济贸易大学",
+  kind: "block",
+  rows: [
+    { period: 1, start: "08:00", end: "08:45" },
+    { period: 2, start: "08:45", end: "09:30" },
+    { period: 3, start: "09:50", end: "10:35" },
+    { period: 4, start: "10:35", end: "11:20" },
+    { period: 5, start: "11:20", end: "12:10" },
+    { period: 6, start: "13:30", end: "14:15" },
+    { period: 7, start: "14:15", end: "15:00" },
+    { period: 8, start: "15:20", end: "16:05" },
+    { period: 9, start: "16:05", end: "16:50" },
+    { period: 10, start: "16:50", end: "17:40" },
+    { period: 11, start: "18:30", end: "19:15" },
+    { period: 12, start: "19:15", end: "20:00" },
+    { period: 13, start: "20:00", end: "20:50" },
+  ],
+  blocks: [
+    { label: "第一大节", from: 1, to: 2 },
+    { label: "第二大节", from: 3, to: 5 },
+    { label: "第三大节", from: 6, to: 7 },
+    { label: "第四大节", from: 8, to: 10 },
+    { label: "第五大节", from: 11, to: 13 },
+  ],
+};
+
 const PRESETS: Record<string, SchedulePreset> = {
   [PKU_SCHEDULE.id]: PKU_SCHEDULE,
+  [UIBE_SCHEDULE.id]: UIBE_SCHEDULE,
 };
 
 /** 未选择学校时的回落预设（= 北大） */

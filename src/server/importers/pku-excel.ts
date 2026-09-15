@@ -11,6 +11,7 @@ import type {
 } from "@/src/domain/import";
 import type { Weekday } from "@/src/domain/schedule";
 import { parseWeekRule, type WeekParseResult } from "@/src/domain/week-rules";
+import { PKU_SCHEDULE, type SchedulePreset } from "@/src/config/school-schedules";
 
 type CellValue = string | number | boolean | Date | null;
 type SheetData = { sheet: string; data: CellValue[][] };
@@ -34,6 +35,8 @@ const headerAliases = {
   endPeriod: ["endperiod", "结束节次", "终止节次", "结束节"],
   period: ["period", "节次", "上课节次"],
   weeks: ["weeks", "周次", "上课周次"],
+  block: ["block", "大节", "上课大节"],
+  lessonCount: ["lessoncount", "节数", "课时", "上课节数"],
 } as const;
 
 type HeaderKey = keyof typeof headerAliases;
@@ -67,16 +70,40 @@ function parseWeekday(value: string): Weekday | null {
   return weekdayAliases[value.trim().toLowerCase()] ?? null;
 }
 
-function parsePeriodRange(value: string): [number, number] | null {
+function parsePeriodRange(value: string, maxPeriod: number): [number, number] | null {
   const numbers = [...value.matchAll(/\d{1,2}/g)].map((match) => Number(match[0]));
   if (!numbers.length) return null;
   const start = numbers[0];
   const end = numbers[1] ?? start;
-  if (start < 1 || end > 12 || end < start) return null;
+  if (start < 1 || end > maxPeriod || end < start) return null;
   return [start, end];
 }
 
-function findRowHeader(sheet: SheetData) {
+// 大节号：支持「二」「2」「第2大节」「第二大节」等写法
+const chineseBlockDigits: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+
+function parseBlockNumber(value: string): number | null {
+  const match = value.match(/\d{1,2}/);
+  if (match) {
+    const block = Number(match[0]);
+    return block >= 1 && block <= 12 ? block : null;
+  }
+  const cleaned = value.replace(/第|大|节|[\s,，、]/g, "");
+  if (cleaned.length === 1) return chineseBlockDigits[cleaned] ?? null;
+  if (cleaned === "十") return 10;
+  if (cleaned.length === 2 && cleaned[0] === "十") {
+    const rest = chineseBlockDigits[cleaned[1]];
+    return rest ? 10 + rest : null;
+  }
+  if (cleaned.length === 3 && cleaned[1] === "十") {
+    const tens = chineseBlockDigits[cleaned[0]];
+    const rest = chineseBlockDigits[cleaned[2]];
+    return tens && rest ? tens * 10 + rest : null;
+  }
+  return null;
+}
+
+function findRowHeader(sheet: SheetData, preset: SchedulePreset) {
   for (let rowIndex = 0; rowIndex < Math.min(20, sheet.data.length); rowIndex += 1) {
     const map: HeaderMap = {};
     sheet.data[rowIndex].forEach((value, column) => {
@@ -85,7 +112,9 @@ function findRowHeader(sheet: SheetData) {
         if (aliases.some((alias) => normalizedHeader(alias) === header)) map[key] = column;
       }
     });
-    if (map.course !== undefined && map.weekday !== undefined && (map.period !== undefined || (map.startPeriod !== undefined && map.endPeriod !== undefined))) {
+    const byPeriod = map.period !== undefined || (map.startPeriod !== undefined && map.endPeriod !== undefined);
+    const byBlock = map.block !== undefined;
+    if (map.course !== undefined && map.weekday !== undefined && (byPeriod || byBlock)) {
       return { rowIndex, map };
     }
   }
@@ -118,7 +147,8 @@ function finalize(format: "ROW" | "GRID", courses: ImportCourseDraft[], warnings
   };
 }
 
-function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findRowHeader>>) {
+function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findRowHeader>>, preset: SchedulePreset) {
+  const maxPeriod = preset.rows.length;
   const coursesByKey = new Map<string, ImportCourseDraft>();
   const warnings: ImportWarning[] = [];
   for (let rowIndex = header.rowIndex + 1; rowIndex < sheet.data.length; rowIndex += 1) {
@@ -127,9 +157,23 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
     if (!name) continue;
     const rowSource = source(sheet, rowIndex, header.map.course!);
     const weekday = parseWeekday(cellText(row[header.map.weekday!]));
-    const period = header.map.period !== undefined
-      ? parsePeriodRange(cellText(row[header.map.period]))
-      : parsePeriodRange(`${cellText(row[header.map.startPeriod!])}-${cellText(row[header.map.endPeriod!])}`);
+    let period: [number, number] | null = null;
+    if (header.map.block !== undefined) {
+      // 大节制（如对外经贸）：大节号 + 节数（缺省 2）→ 展开为小节区间
+      const blockNumber = parseBlockNumber(cellText(row[header.map.block]));
+      const block = blockNumber !== null ? preset.blocks?.[blockNumber - 1] : undefined;
+      if (!block) {
+        warnings.push({ id: randomUUID(), code: "INVALID_ROW", message: `无法确认“${name}”的大节（应在第 1–${preset.blocks?.length ?? 0} 大节之间），已跳过`, source: rowSource });
+        continue;
+      }
+      const lessonCount = header.map.lessonCount !== undefined ? Number(cellText(row[header.map.lessonCount])) || 2 : 2;
+      const span = lessonCount === 3 ? 3 : 2;
+      period = [block.from, Math.min(block.from + span - 1, block.to)];
+    } else if (header.map.period !== undefined) {
+      period = parsePeriodRange(cellText(row[header.map.period]), maxPeriod);
+    } else {
+      period = parsePeriodRange(`${cellText(row[header.map.startPeriod!])}-${cellText(row[header.map.endPeriod!])}`, maxPeriod);
+    }
     const weekResult = parseWeekRule(header.map.weeks !== undefined ? cellText(row[header.map.weeks]) : "");
     if (!weekday || !period) {
       warnings.push({ id: randomUUID(), code: "INVALID_ROW", message: `无法确认“${name}”的星期或节次，已跳过`, source: rowSource });
@@ -149,15 +193,16 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
   return finalize("ROW", [...coursesByKey.values()], warnings);
 }
 
-function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findGridHeader>>) {
+function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findGridHeader>>, preset: SchedulePreset) {
   const coursesByKey = new Map<string, ImportCourseDraft>();
   const warnings: ImportWarning[] = [];
   const firstDayColumn = Math.min(...header.columns.keys());
   for (let rowIndex = header.rowIndex + 1; rowIndex < sheet.data.length; rowIndex += 1) {
     const row = sheet.data[rowIndex];
-    const periodLabel = row.slice(0, firstDayColumn).map(cellText).find((value) => parsePeriodRange(value));
-    const fallback = Math.min(12, rowIndex - header.rowIndex);
-    const period = periodLabel ? parsePeriodRange(periodLabel)! : [fallback, fallback] as [number, number];
+    const maxPeriod = preset.rows.length;
+    const periodLabel = row.slice(0, firstDayColumn).map(cellText).find((value) => parsePeriodRange(value, maxPeriod));
+    const fallback = Math.min(maxPeriod, rowIndex - header.rowIndex);
+    const period = periodLabel ? parsePeriodRange(periodLabel, maxPeriod)! : [fallback, fallback] as [number, number];
     for (const [column, weekday] of header.columns) {
       const text = cellText(row[column]);
       if (!text) continue;
@@ -222,12 +267,12 @@ function resolveGridWeeks(entry: GridCellEntry): WeekParseResult {
   return parseWeekRule(entry.weekText);
 }
 
-export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
+export function parseWorkbookSheets(sheets: SheetData[], preset: SchedulePreset = PKU_SCHEDULE): ImportPreviewPayload {
   let recognizedStructure = false;
   for (const sheet of sheets) {
-    const header = findRowHeader(sheet);
+    const header = findRowHeader(sheet, preset);
     if (header) {
-      const result = parseRowSheet(sheet, header);
+      const result = parseRowSheet(sheet, header, preset);
       if (result.courses.length) return result;
       recognizedStructure = true;
     }
@@ -235,13 +280,13 @@ export function parseWorkbookSheets(sheets: SheetData[]): ImportPreviewPayload {
   for (const sheet of sheets) {
     const header = findGridHeader(sheet);
     if (header) {
-      const result = parseGridSheet(sheet, header);
+      const result = parseGridSheet(sheet, header, preset);
       if (result.courses.length) return result;
       recognizedStructure = true;
     }
   }
   if (recognizedStructure) throw new HttpError(422, "课表格式已识别，但没有读到课程行——请填写课程后再导入");
-  throw new HttpError(422, "当前版本仅支持北京大学课表或课隙标准模板");
+  throw new HttpError(422, "当前版本仅支持北京大学课表、课隙标准模板或对应学校的标准模板");
 }
 
 // OLE2 复合文档魔数：Excel 97-2003（.xls）文件头
@@ -269,14 +314,14 @@ async function readSheets(file: ArrayBuffer): Promise<SheetData[]> {
 export class PkuExcelImporter implements TimetableImporter {
   provider = "PKU_EXCEL";
 
-  async detect(file: ArrayBuffer): Promise<DetectionResult> {
+  async detect(file: ArrayBuffer, preset: SchedulePreset = PKU_SCHEDULE): Promise<DetectionResult> {
     const sheets = await readSheets(file);
-    if (sheets.some(findRowHeader)) return { supported: true, format: "ROW", confidence: 1, reason: "识别到标准行式课表字段" };
+    if (sheets.some((sheet) => findRowHeader(sheet, preset))) return { supported: true, format: "ROW", confidence: 1, reason: "识别到标准行式课表字段" };
     if (sheets.some(findGridHeader)) return { supported: true, format: "GRID", confidence: 0.8, reason: "识别到星期课表网格" };
-    return { supported: false, format: null, confidence: 0, reason: "未识别到课表内容：目前支持北大教务系统导出的课表，或课隙标准模板" };
+    return { supported: false, format: null, confidence: 0, reason: `未识别到课表内容：目前支持${preset.school}教务课表或课隙标准模板` };
   }
 
-  async parse(file: ArrayBuffer): Promise<ImportPreviewPayload> {
-    return parseWorkbookSheets(await readSheets(file));
+  async parse(file: ArrayBuffer, preset: SchedulePreset = PKU_SCHEDULE): Promise<ImportPreviewPayload> {
+    return parseWorkbookSheets(await readSheets(file), preset);
   }
 }

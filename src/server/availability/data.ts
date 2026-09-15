@@ -11,8 +11,10 @@ import {
   groupMembers,
   groupPrivacyOverrides,
   groups,
+  semesters,
   users,
 } from "@/src/server/db/schema";
+import { getScheduleById } from "@/src/config/school-schedules";
 import { HttpError } from "@/src/server/http";
 
 const weekdayFromNumber: Record<number, Weekday> = {
@@ -28,6 +30,7 @@ const weekdayFromNumber: Record<number, Weekday> = {
 interface GroupScheduleData {
   dataset: ScheduleDataset;
   privacyByUserId: Record<string, PrivacyLevel>;
+  periodCount: number;
 }
 
 async function loadAuthorizedGroupSchedule(
@@ -37,9 +40,10 @@ async function loadAuthorizedGroupSchedule(
 ): Promise<GroupScheduleData> {
   const db = getDatabase();
   const [membership] = await db
-    .select({ semesterId: groups.semesterId })
+    .select({ semesterId: groups.semesterId, scheduleId: semesters.scheduleId })
     .from(groupMembers)
     .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+    .innerJoin(semesters, eq(groups.semesterId, semesters.id))
     .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, viewerId)))
     .limit(1);
 
@@ -127,6 +131,7 @@ async function loadAuthorizedGroupSchedule(
     privacyByUserId: Object.fromEntries(
       overrideRows.map((override) => [override.userId, override.privacyLevel as PrivacyLevel]),
     ),
+    periodCount: getScheduleById(membership.scheduleId).rows.length,
   };
 }
 
@@ -136,12 +141,12 @@ export async function getGroupAvailability(
   week: number,
   selectedUserIds: string[],
 ) {
-  const { dataset, privacyByUserId } = await loadAuthorizedGroupSchedule(viewerId, groupId, selectedUserIds);
+  const { dataset, privacyByUserId, periodCount } = await loadAuthorizedGroupSchedule(viewerId, groupId, selectedUserIds);
   const slots: Record<string, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number }>> = {};
 
   for (const weekday of WEEKDAYS) {
     slots[weekday] = {};
-    for (let period = 1; period <= 12; period += 1) {
+    for (let period = 1; period <= periodCount; period += 1) {
       const slot = calculateAvailabilitySlot(dataset, {
         week,
         weekday,

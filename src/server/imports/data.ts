@@ -1,10 +1,10 @@
 import "server-only";
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { ImportCourseDraft, ImportPreviewPayload, ImportSnapshotPayload } from "@/src/domain/import";
 import { IMPORT_SNAPSHOT_TTL_MS } from "@/src/domain/import";
 import type { Weekday } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
-import { courseExceptions, courseMeetings, courses, importPreviews, importSnapshots } from "@/src/server/db/schema";
+import { courseExceptions, courseMeetings, courses, importPreviews, importSnapshots, semesters, users } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
 import { ensureDefaultSemester } from "@/src/server/semesters/data";
 
@@ -13,8 +13,8 @@ const weekdayNumber: Record<Weekday, number> = {
   friday: 5, saturday: 6, sunday: 7,
 };
 
-export async function createImportPreview(userId: string, payload: ImportPreviewPayload) {
-  const semester = await ensureDefaultSemester();
+export async function createImportPreview(userId: string, payload: ImportPreviewPayload, scheduleId?: string | null) {
+  const semester = await ensureDefaultSemester(scheduleId);
   const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
   const [preview] = await getDatabase()
     .insert(importPreviews)
@@ -43,11 +43,21 @@ export async function confirmImport(userId: string, previewId: string, drafts: I
       .where(and(eq(importPreviews.id, previewId), eq(importPreviews.userId, userId), gt(importPreviews.expiresAt, new Date())))
       .returning({ semesterId: importPreviews.semesterId });
     if (!preview) throw new HttpError(404, "导入预览不存在、已过期或已确认");
+    const [previewSemester] = await tx
+      .select({ scheduleId: semesters.scheduleId })
+      .from(semesters)
+      .where(eq(semesters.id, preview.semesterId))
+      .limit(1);
 
     // 替换前先把现有课表（含「本周不去」）存成快照，7 天内可一键恢复
     const savedSnapshotId = await snapshotCurrentCourses(tx, userId, preview.semesterId);
 
     await tx.delete(courses).where(and(eq(courses.userId, userId), eq(courses.semesterId, preview.semesterId)));
+    // 首次导入自动记住所选学校，之后建群默认使用同一作息
+    if (previewSemester?.scheduleId) {
+      await tx.update(users).set({ scheduleId: previewSemester.scheduleId })
+        .where(and(eq(users.id, userId), isNull(users.scheduleId)));
+    }
     for (const draft of drafts) {
       const [course] = await tx
         .insert(courses)

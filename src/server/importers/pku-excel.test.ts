@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import * as SheetJS from "xlsx";
+import { UIBE_SCHEDULE } from "@/src/config/school-schedules";
 import { parseWorkbookSheets, PkuExcelImporter } from "./pku-excel";
+
 
 describe("PkuExcelImporter", () => {
   it("detects the official template", async () => {
@@ -89,5 +91,25 @@ describe("PkuExcelImporter", () => {
     expect(result.stats).toEqual({ courseCount: 2, meetingCount: 2, warningCount: 1 });
     expect(result.courses[0].meetings[0]).toMatchObject({ weekday: "monday", startPeriod: 1, endPeriod: 2 });
     expect(result.warnings[0]).toMatchObject({ code: "MISSING_WEEKS", source: "课表 / E2" });
+  });
+
+  it("expands UIBE 大节 rows into small periods", () => {
+    const result = parseWorkbookSheets([{ sheet: "课表", data: [
+      ["课程名称", "教师", "地点", "星期", "大节", "节数", "周次"],
+      ["国际贸易", "王老师", "宁远楼 305", "周一", 1, "", "1-16"],
+      ["国际贸易", "王老师", "宁远楼 305", "周三", "第二大节", 3, "1-16"],
+      ["金融学", "李老师", "博学楼 402", "周五", 5, 2, "1-16"],
+    ] }], UIBE_SCHEDULE);
+
+    expect(result.stats.courseCount).toBe(2);
+    const trade = result.courses.find((course) => course.name === "国际贸易");
+    expect(trade?.meetings).toHaveLength(2);
+    expect(trade?.meetings[0]).toMatchObject({ weekday: "monday", startPeriod: 1, endPeriod: 2 });
+    // 第二大节 3 节连上 → 小节 3–5（09:50–12:10）
+    expect(trade?.meetings[1]).toMatchObject({ weekday: "wednesday", startPeriod: 3, endPeriod: 5 });
+    const finance = result.courses.find((course) => course.name === "金融学");
+    // 第五大节 2 节 → 小节 11–12（18:30–20:00）
+    expect(finance?.meetings[0]).toMatchObject({ weekday: "friday", startPeriod: 11, endPeriod: 12 });
+    expect(result.stats.warningCount).toBe(0);
   });
 });

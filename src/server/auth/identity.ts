@@ -9,6 +9,7 @@ import { HttpError } from "@/src/server/http";
 export interface ProfilePatch {
   nickname?: string;
   defaultPrivacyLevel?: PrivacyLevel;
+  scheduleId?: string | null;
 }
 
 // 仅凭邮箱识别身份：不存在则创建（昵称先用邮箱前缀占位），存在则原样返回。
@@ -16,7 +17,7 @@ export interface ProfilePatch {
 export async function identifyUser(email: string) {
   const normalized = normalizeIdentity({ email });
   const database = getDatabase();
-  const columns = { id: users.id, nickname: users.nickname, email: users.email, emailVerifiedAt: users.emailVerifiedAt };
+  const columns = { id: users.id, nickname: users.nickname, email: users.email, scheduleId: users.scheduleId, emailVerifiedAt: users.emailVerifiedAt };
 
   const [created] = await database
     .insert(users)
@@ -31,7 +32,7 @@ export async function identifyUser(email: string) {
 }
 
 export async function updateProfile(userId: string, patch: ProfilePatch) {
-  if (patch.nickname === undefined && patch.defaultPrivacyLevel === undefined) {
+  if (patch.nickname === undefined && patch.defaultPrivacyLevel === undefined && patch.scheduleId === undefined) {
     throw new HttpError(400, "没有需要保存的修改");
   }
 
@@ -40,10 +41,11 @@ export async function updateProfile(userId: string, patch: ProfilePatch) {
     .set({
       ...(patch.nickname !== undefined ? { nickname: patch.nickname } : {}),
       ...(patch.defaultPrivacyLevel !== undefined ? { defaultPrivacyLevel: patch.defaultPrivacyLevel } : {}),
+      ...(patch.scheduleId !== undefined ? { scheduleId: patch.scheduleId } : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, userId))
-    .returning({ id: users.id, nickname: users.nickname, email: users.email, defaultPrivacyLevel: users.defaultPrivacyLevel });
+    .returning({ id: users.id, nickname: users.nickname, email: users.email, defaultPrivacyLevel: users.defaultPrivacyLevel, scheduleId: users.scheduleId });
 
   if (!user) throw new Error("Failed to update profile");
   return user;
