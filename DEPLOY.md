@@ -85,3 +85,9 @@ node --env-file=.env scripts/apply-semester-config.mjs 2027-02-22 16 Asia/Shangh
 ```
 
 `OPENPERIOD_SEMESTER_START` 环境变量仅在数据库还没有该学期记录时用于首次创建；之后修改开学日必须用上面的脚本。数据库备份：`pg_dump` 每周一次。
+
+## v0.2.0 多学校支持（部署说明）
+
+- **数据库迁移**：`0004_schedule_presets`（semesters/users 加 `schedule_id`、节次上限 12→16）与 `0005_custom_schedule`（semesters 加 `custom_schedule`）。均为加列/放宽约束，对旧代码零影响；上线时先跑 `pnpm db:migrate` 再部署新代码。
+- **多学校开学日**：非北大学校的学期开学日暂沿用全局默认（`OPENPERIOD_SEMESTER_START`）。各校开学日不同（如浙大 9/14 开学），如需精确请用维护脚本按学校更新（`school` 列 = 预设 id，如 `sjtu`、`uibe`、`lzu-winter`）。
+- **自定义作息**：导入页选择「自定义作息」并填写节次时间表，保存到用户自己的学期行（`custom_schedule`），共同空闲按该网格计算。
