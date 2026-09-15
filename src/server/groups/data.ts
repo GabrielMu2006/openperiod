@@ -34,6 +34,7 @@ export async function listGroupsForUser(userId: string) {
       startDate: semesters.startDate,
       weekCount: semesters.weekCount,
       timezone: semesters.timezone,
+      scheduleId: semesters.scheduleId,
       privacyLevel: groupPrivacyOverrides.privacyLevel,
     })
     .from(groupMembers)
@@ -81,6 +82,7 @@ export async function listGroupsForUser(userId: string) {
           startDate: group.startDate,
           weekCount: group.weekCount,
           timezone: group.timezone,
+          scheduleId: group.scheduleId,
           currentWeek: getTeachingWeek({
             id: group.semesterId,
             school: group.school,

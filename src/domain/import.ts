@@ -41,6 +41,8 @@ export interface ImportWarning {
 export interface ImportPreviewPayload {
   provider: "PKU_EXCEL";
   format: ImportFormat;
+  /** 导入时选择的作息预设；缺省 = 北大默认 */
+  scheduleId?: string;
   courses: ImportCourseDraft[];
   warnings: ImportWarning[];
   stats: { courseCount: number; meetingCount: number; warningCount: number };

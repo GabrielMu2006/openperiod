@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
 import { WEEKDAYS, type Weekday } from "@/src/domain/schedule";
+import { getScheduleForSemester, schedulePeriodCount } from "@/src/config/school-schedules";
 import { parseWeekRule } from "@/src/domain/week-rules";
 
 const dayLabels: Record<Weekday, string> = {
@@ -41,7 +42,7 @@ interface BusyDTO {
 
 interface ScheduleDTO {
   week: number;
-  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string };
+  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; scheduleId?: string | null };
   courses: CourseDTO[];
   busyBlocks: BusyDTO[];
 }
@@ -104,6 +105,7 @@ export function MySchedule() {
   const [restoring, setRestoring] = useState(false);
   const [swipeHintVisible, setSwipeHintVisible] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
+  const mySchedule = getScheduleForSemester(schedule?.semester);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -207,8 +209,8 @@ export function MySchedule() {
           <div className="my-week-switcher"><button type="button" aria-label="上一周" disabled={week <= 1} onClick={() => setWeek((value) => Math.max(1, (value ?? 1) - 1))}>‹</button><strong>第 {week} 周 {week === schedule.semester.currentWeek && <em>本周</em>}</strong><button type="button" aria-label="下一周" disabled={week >= schedule.semester.weekCount} onClick={() => setWeek((value) => Math.min(schedule.semester.weekCount, (value ?? 1) + 1))}>›</button></div>
           {schedule.courses.length === 0 && schedule.busyBlocks.length === 0 ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，或手动添加第一门课程。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button></div></section> : <div className="my-grid-scroller" onScroll={(event) => { if (swipeHintVisible && event.currentTarget.scrollLeft > 12) setSwipeHintVisible(false); }}><div className="my-timetable">
             <div className="my-corner">节次</div>{WEEKDAYS.map((day, index) => <div className="my-day" style={{ gridColumn: index + 2 }} key={day}>周{dayLabels[day]}</div>)}
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((period) => <div className="my-period" style={{ gridRow: period + 1 }} key={period}><strong>{period}</strong><small>第 {period} 节</small></div>)}
-            {Array.from({ length: 84 }, (_, index) => <div className="my-grid-cell" style={{ gridColumn: index % 7 + 2, gridRow: Math.floor(index / 7) + 2 }} key={index} />)}
+            {Array.from({ length: schedulePeriodCount(mySchedule) }, (_, index) => index + 1).map((period) => <div className="my-period" style={{ gridRow: period + 1 }} key={period}><strong>{period}</strong><small>{mySchedule.rows[period - 1]?.label ?? `第 ${period} 节`}</small></div>)}
+            {Array.from({ length: schedulePeriodCount(mySchedule) * 7 }, (_, index) => <div className="my-grid-cell" style={{ gridColumn: index % 7 + 2, gridRow: Math.floor(index / 7) + 2 }} key={index} />)}
             {visibleCourses.map(({ course, meeting }) => <button type="button" className={`my-course-block ${meeting.skippedThisWeek ? "skipped" : ""}`} style={{ gridColumn: WEEKDAYS.indexOf(meeting.weekday) + 2, gridRow: `${meeting.startPeriod + 1} / ${meeting.endPeriod + 2}` }} onClick={() => setSelection({ type: "course", course, meetingId: meeting.id })} key={meeting.id}><strong>{course.name}</strong><span>{course.location || `${meeting.startPeriod}–${meeting.endPeriod} 节`}</span>{meeting.skippedThisWeek && <em>本周不去</em>}</button>)}
             {visibleBusy.map((block) => <button type="button" className="my-busy-block" style={{ gridColumn: WEEKDAYS.indexOf(block.weekday) + 2, gridRow: `${block.startPeriod + 1} / ${block.endPeriod + 2}` }} onClick={() => setSelection({ type: "busy", block })} key={block.id}><strong>{block.title || "忙碌"}</strong><span>{block.kind === "ONE_TIME" ? `仅第 ${block.weeks.join(",")} 周` : "周期"}</span></button>)}
           </div><span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true">← 表格可左右滑动 →</span></div>}

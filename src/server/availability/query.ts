@@ -14,7 +14,7 @@ export const availabilityQuerySchema = z.object({
 
 export const availabilityDetailQuerySchema = availabilityQuerySchema.extend({
   weekday: z.enum(WEEKDAYS),
-  period: z.coerce.number().int().min(1).max(12),
+  period: z.coerce.number().int().min(1).max(16),
 });
 
 export function searchParamsToObject(searchParams: URLSearchParams) {

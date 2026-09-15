@@ -17,15 +17,17 @@ export interface FreeRun {
 
 // 把每周每节的「全员有空」格子折算成一天内的连续空档；
 // isExcluded 用于把已经过去的时段排除在今天之外。
+// periodCount 跟随所在学校的作息预设（缺省 = 北大 12 节）。
 export function buildFreeRuns(
   slots: SlotGrid,
   isExcluded?: (weekday: Weekday, period: number) => boolean,
+  periodCount: number = PERIOD_COUNT,
 ): FreeRun[] {
   const runs: FreeRun[] = [];
   for (const weekday of WEEKDAYS) {
     let start: number | null = null;
-    for (let period = 1; period <= PERIOD_COUNT + 1; period += 1) {
-      const info = period <= PERIOD_COUNT ? slots[weekday]?.[String(period)] : undefined;
+    for (let period = 1; period <= periodCount + 1; period += 1) {
+      const info = period <= periodCount ? slots[weekday]?.[String(period)] : undefined;
       const free = Boolean(info?.commonFree) && !(isExcluded?.(weekday, period) ?? false);
       if (free && start === null) {
         start = period;

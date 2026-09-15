@@ -10,8 +10,10 @@ describe("availability API query", () => {
     expect(result).toEqual({ week: 5, users: [alice, bob] });
   });
 
-  it("rejects periods and weeks outside the PKU V1 grid", () => {
+  it("rejects periods and weeks outside the global grid cap", () => {
     expect(availabilityQuerySchema.safeParse({ week: 17, users: alice }).success).toBe(false);
-    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 13 }).success).toBe(false);
+    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 17 }).success).toBe(false);
+    // 13-16 节在多学校支持后合法（如南大 14 节制）
+    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 14 }).success).toBe(true);
   });
 });

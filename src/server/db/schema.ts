@@ -75,6 +75,8 @@ export const semesters = pgTable(
     startDate: date("start_date", { mode: "string" }).notNull(),
     weekCount: integer("week_count").notNull().default(16),
     timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
+    // 作息预设 id（school-schedules.ts 里的 key）；null = 早期数据，按北大默认处理
+    scheduleId: varchar("schedule_id", { length: 64 }),
   },
   (table) => [
     unique("semesters_school_year_term_unique").on(table.school, table.academicYear, table.semester),
@@ -152,7 +154,7 @@ export const courseMeetings = pgTable(
   (table) => [
     index("course_meetings_course_id_idx").on(table.courseId),
     check("course_meetings_weekday_check", sql`${table.weekday} between 1 and 7`),
-    check("course_meetings_period_check", sql`${table.startPeriod} between 1 and 12 and ${table.endPeriod} between ${table.startPeriod} and 12`),
+    check("course_meetings_period_check", sql`${table.startPeriod} between 1 and 16 and ${table.endPeriod} between ${table.startPeriod} and 16`),
   ],
 );
 
@@ -190,7 +192,7 @@ export const busyBlocks = pgTable(
   (table) => [
     index("busy_blocks_user_semester_idx").on(table.userId, table.semesterId),
     check("busy_blocks_weekday_check", sql`${table.weekday} between 1 and 7`),
-    check("busy_blocks_period_check", sql`${table.startPeriod} between 1 and 12 and ${table.endPeriod} between ${table.startPeriod} and 12`),
+    check("busy_blocks_period_check", sql`${table.startPeriod} between 1 and 16 and ${table.endPeriod} between ${table.startPeriod} and 16`),
   ],
 );
 

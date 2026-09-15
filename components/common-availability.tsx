@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
-import { PERIOD_TIMES, periodRange, periodRangeMinutes } from "@/src/config/period-times";
+import { getScheduleForSemester, periodRangeIn, periodRangeMinutesIn } from "@/src/config/school-schedules";
 import { buildFreeRuns, formatDuration, type FreeRun } from "@/src/domain/free-runs";
 import { WEEKDAYS, type AvailabilitySlot, type Weekday } from "@/src/domain/schedule";
 
@@ -19,7 +19,7 @@ interface GroupDTO {
   inviteCode: string;
   role: "OWNER" | "MEMBER";
   privacyLevel: 0 | 1 | 2 | null;
-  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; timezone: string };
+  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; timezone: string; scheduleId?: string | null };
   members: { id: string; nickname: string; courseCount: number }[];
 }
 
@@ -276,6 +276,7 @@ export function CommonAvailability() {
   const isCurrentWeekView = activeGroup !== null && week === activeGroup.semester.currentWeek;
   const todayIndex = activeGroup && isCurrentWeekView ? weekdayIndexNowIn(activeGroup.semester.timezone) : -1;
   const activeDayIdx = dayIndex ?? (todayIndex >= 0 ? todayIndex : 0);
+  const schedule = getScheduleForSemester(activeGroup?.semester);
   const nowMinutes = useMemo(
     () => (activeGroup ? minutesNowIn(activeGroup.semester.timezone) : 0),
     [activeGroup, grid],
@@ -285,8 +286,8 @@ export function CommonAvailability() {
     if (todayIndex < 0) return () => false;
     const today = WEEKDAYS[todayIndex];
     return (weekday: Weekday, period: number) =>
-      weekday === today && (periodRangeMinutes(period, period)?.endMin ?? 0) <= nowMinutes;
-  }, [todayIndex, nowMinutes]);
+      weekday === today && (periodRangeMinutesIn(schedule, period, period)?.endMin ?? 0) <= nowMinutes;
+  }, [todayIndex, nowMinutes, schedule]);
 
   // 渲染单个格子按钮（周总览与按天视图共用样式与语义）
   function renderSlotButton(weekday: Weekday, weekdayIndex: number, period: number, extraClass = "") {
@@ -295,7 +296,7 @@ export function CommonAvailability() {
     const past = periodIsPast(weekday, period);
     const key = `${weekday}-${period}`;
     const pct = info && info.selectedUsers > 0 ? info.freeCount / info.selectedUsers : 0;
-    const range = periodRange(period, period);
+    const range = periodRangeIn(schedule, period, period);
     const timeText = range ? `${range.start}–${range.end}` : "";
     const stateText = loading
       ? "正在计算"
@@ -328,17 +329,17 @@ export function CommonAvailability() {
 
   const freeRuns = useMemo(() => {
     if (!grid) return [];
-    return buildFreeRuns(grid.slots, periodIsPast);
-  }, [grid, periodIsPast]);
+    return buildFreeRuns(grid.slots, periodIsPast, schedule.rows.length);
+  }, [grid, periodIsPast, schedule]);
 
   const visibleRuns = useMemo(() => freeRuns.filter((run) => {
     if (!runFilters.weekdays.includes(run.weekday)) return false;
-    const range = periodRangeMinutes(run.startPeriod, run.endPeriod);
+    const range = periodRangeMinutesIn(schedule, run.startPeriod, run.endPeriod);
     if (!range) return false;
     if (runFilters.daypart === "day" && range.startMin >= 18 * 60) return false;
     if (runFilters.daypart === "evening" && range.startMin < 18 * 60) return false;
     return range.endMin - range.startMin >= runFilters.minMinutes;
-  }), [freeRuns, runFilters]);
+  }), [freeRuns, runFilters, schedule]);
 
   function toggleRunWeekday(day: Weekday) {
     setRunFilters((current) => {
@@ -348,7 +349,7 @@ export function CommonAvailability() {
     });
   }
 
-  const slotDetailRange = selectedSlot ? periodRange(selectedSlot.period, selectedSlot.period) : null;
+  const slotDetailRange = selectedSlot ? periodRangeIn(schedule, selectedSlot.period, selectedSlot.period) : null;
   const slotDetailWeekdayIndex = selectedSlot ? WEEKDAYS.indexOf(selectedSlot.weekday) : -1;
 
   return (
@@ -399,8 +400,8 @@ export function CommonAvailability() {
                         <small>{dateLabel(activeGroup.semester.startDate, week, index)}{index === todayIndex && " · 今天"}</small>
                       </div>
                     ))}
-                    {Array.from({ length: 12 }, (_, index) => index + 1).flatMap((period) => [
-                      <div className="period" key={`period-${period}`}><strong>{period}</strong><small className="period-time">{PERIOD_TIMES[period - 1]?.start}</small></div>,
+                    {Array.from({ length: schedule.rows.length }, (_, index) => index + 1).flatMap((period) => [
+                      <div className="period" key={`period-${period}`}><strong>{period}</strong><small className="period-time">{schedule.rows[period - 1]?.start}</small></div>,
                       ...WEEKDAYS.map((weekday, weekdayIndex) => renderSlotButton(weekday, weekdayIndex, period)),
                     ])}
                   </div>
@@ -416,9 +417,9 @@ export function CommonAvailability() {
                     ))}
                   </div>
                   <ul className="day-slots">
-                    {Array.from({ length: 12 }, (_, index) => index + 1).map((period) => {
+                    {Array.from({ length: schedule.rows.length }, (_, index) => index + 1).map((period) => {
                       const weekday = WEEKDAYS[activeDayIdx];
-                      const range = periodRange(period, period);
+                      const range = periodRangeIn(schedule, period, period);
                       return <li key={period}>
                         <div className="day-slot-time"><strong>第 {period} 节</strong><small>{range ? `${range.start}–${range.end}` : ""}</small></div>
                         {renderSlotButton(weekday, activeDayIdx, period, " day-slot")}
@@ -458,8 +459,8 @@ export function CommonAvailability() {
                 <ul className="free-run-list">
                   {visibleRuns.map((run) => {
                     const weekdayIndex = WEEKDAYS.indexOf(run.weekday);
-                    const range = periodRange(run.startPeriod, run.endPeriod);
-                    const minutes = range ? periodRangeMinutes(run.startPeriod, run.endPeriod)! : null;
+                    const range = periodRangeIn(schedule, run.startPeriod, run.endPeriod);
+                    const minutes = range ? periodRangeMinutesIn(schedule, run.startPeriod, run.endPeriod)! : null;
                     const runKey = `${run.weekday}-${run.startPeriod}`;
                     const copyLabel = `${longDateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周${weekdayLabels[run.weekday]}）${range ? `${range.start}–${range.end}` : ""} 大家都有空 · 来自课隙 OpenPeriod`;
                     return <li key={runKey}>

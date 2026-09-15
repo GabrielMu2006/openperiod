@@ -6,8 +6,8 @@ const weeksSchema = z.array(z.number().int().min(1).max(16)).min(1).max(16)
 
 const meetingSchema = z.object({
   weekday: z.enum(WEEKDAYS),
-  startPeriod: z.number().int().min(1).max(12),
-  endPeriod: z.number().int().min(1).max(12),
+  startPeriod: z.number().int().min(1).max(16),
+  endPeriod: z.number().int().min(1).max(16),
   weeks: weeksSchema,
 }).refine((meeting) => meeting.endPeriod >= meeting.startPeriod, {
   message: "结束节次不能早于开始节次",
@@ -30,8 +30,8 @@ export const busyMutationSchema = z.object({
   kind: z.enum(["ONE_TIME", "RECURRING"]),
   title: z.string().trim().max(200).optional(),
   weekday: z.enum(WEEKDAYS),
-  startPeriod: z.number().int().min(1).max(12),
-  endPeriod: z.number().int().min(1).max(12),
+  startPeriod: z.number().int().min(1).max(16),
+  endPeriod: z.number().int().min(1).max(16),
   weeks: weeksSchema,
 }).superRefine((block, context) => {
   if (block.endPeriod < block.startPeriod) {
