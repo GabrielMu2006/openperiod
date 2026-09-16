@@ -26,6 +26,7 @@ interface GroupDTO {
 interface GridResponse {
   week: number;
   selectedUsers: number;
+  gridRows: { period: number; label: string; timeText: string; startMin: number; endMin: number }[];
   slots: Record<Weekday, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number }>>;
 }
 
@@ -277,6 +278,10 @@ export function CommonAvailability() {
   const todayIndex = activeGroup && isCurrentWeekView ? weekdayIndexNowIn(activeGroup.semester.timezone) : -1;
   const activeDayIdx = dayIndex ?? (todayIndex >= 0 ? todayIndex : 0);
   const schedule = activeGroup?.semester.schedule ?? getScheduleForSemester(activeGroup?.semester);
+  // 矩阵网格：服务端统一为北大 12 行 + 超出范围的钟点行；无数据时回落本校作息
+  const gridRows = grid?.gridRows?.length
+    ? grid.gridRows
+    : schedule.rows.map((row, index) => ({ period: index + 1, label: "第 " + (index + 1) + " 节", timeText: row.start + "–" + row.end, startMin: 0, endMin: 0 }));
   const nowMinutes = useMemo(
     () => (activeGroup ? minutesNowIn(activeGroup.semester.timezone) : 0),
     [activeGroup, grid],
@@ -286,8 +291,8 @@ export function CommonAvailability() {
     if (todayIndex < 0) return () => false;
     const today = WEEKDAYS[todayIndex];
     return (weekday: Weekday, period: number) =>
-      weekday === today && (periodRangeMinutesIn(schedule, period, period)?.endMin ?? 0) <= nowMinutes;
-  }, [todayIndex, nowMinutes, schedule]);
+      weekday === today && (gridRows[period - 1]?.endMin ?? 0) <= nowMinutes;
+  }, [todayIndex, nowMinutes, schedule, gridRows]);
 
   // 渲染单个格子按钮（周总览与按天视图共用样式与语义）
   function renderSlotButton(weekday: Weekday, weekdayIndex: number, period: number, extraClass = "") {
@@ -296,8 +301,8 @@ export function CommonAvailability() {
     const past = periodIsPast(weekday, period);
     const key = `${weekday}-${period}`;
     const pct = info && info.selectedUsers > 0 ? info.freeCount / info.selectedUsers : 0;
-    const range = periodRangeIn(schedule, period, period);
-    const timeText = range ? `${range.start}–${range.end}` : "";
+    const range = gridRows[period - 1]?.timeText ?? "";
+    const timeText = range;
     const stateText = loading
       ? "正在计算"
       : pct === 1
@@ -305,7 +310,7 @@ export function CommonAvailability() {
         : pct === 0
           ? "没人有空"
           : `${info!.selectedUsers} 人中 ${info!.freeCount} 人有空`;
-    const ariaLabel = `周${weekdayLabels[weekday]}${dateLabel(activeGroup!.semester.startDate, week, weekdayIndex)} 第 ${period} 节 ${timeText}，${past ? "已过去，" : ""}${stateText}`;
+    const ariaLabel = `周${weekdayLabels[weekday]}${dateLabel(activeGroup!.semester.startDate, week, weekdayIndex)} ${timeText}，${past ? "已过去，" : ""}${stateText}`;
     return <button
       type="button"
       key={key}
@@ -329,12 +334,15 @@ export function CommonAvailability() {
 
   const freeRuns = useMemo(() => {
     if (!grid) return [];
-    return buildFreeRuns(grid.slots, periodIsPast, schedule.rows.length);
-  }, [grid, periodIsPast, schedule]);
+    return buildFreeRuns(grid.slots, periodIsPast, gridRows.length);
+  }, [grid, periodIsPast, schedule, gridRows]);
 
   const visibleRuns = useMemo(() => freeRuns.filter((run) => {
     if (!runFilters.weekdays.includes(run.weekday)) return false;
-    const range = periodRangeMinutesIn(schedule, run.startPeriod, run.endPeriod);
+    const range = {
+      startMin: gridRows[run.startPeriod - 1]?.startMin ?? 0,
+      endMin: gridRows[run.endPeriod - 1]?.endMin ?? 0,
+    };
     if (!range) return false;
     if (runFilters.daypart === "day" && range.startMin >= 18 * 60) return false;
     if (runFilters.daypart === "evening" && range.startMin < 18 * 60) return false;
@@ -349,7 +357,7 @@ export function CommonAvailability() {
     });
   }
 
-  const slotDetailRange = selectedSlot ? periodRangeIn(schedule, selectedSlot.period, selectedSlot.period) : null;
+  const slotDetailRange = selectedSlot ? gridRows[selectedSlot.period - 1]?.timeText ?? "" : "";
   const slotDetailWeekdayIndex = selectedSlot ? WEEKDAYS.indexOf(selectedSlot.weekday) : -1;
 
   return (
@@ -400,9 +408,9 @@ export function CommonAvailability() {
                         <small>{dateLabel(activeGroup.semester.startDate, week, index)}{index === todayIndex && " · 今天"}</small>
                       </div>
                     ))}
-                    {Array.from({ length: schedule.rows.length }, (_, index) => index + 1).flatMap((period) => [
-                      <div className="period" key={`period-${period}`}><strong>{period}</strong><small className="period-time">{schedule.rows[period - 1]?.start}</small></div>,
-                      ...WEEKDAYS.map((weekday, weekdayIndex) => renderSlotButton(weekday, weekdayIndex, period)),
+                    {gridRows.map((row) => [
+                      <div className="period" key={"period-" + row.period}><strong>{row.period}</strong><small className="period-time">{row.timeText.split("–")[0]}</small></div>,
+                      ...WEEKDAYS.map((weekday, weekdayIndex) => renderSlotButton(weekday, weekdayIndex, row.period)),
                     ])}
                   </div>
                   <span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true">← 表格可左右滑动 →</span>
@@ -417,7 +425,8 @@ export function CommonAvailability() {
                     ))}
                   </div>
                   <ul className="day-slots">
-                    {Array.from({ length: schedule.rows.length }, (_, index) => index + 1).map((period) => {
+                    {gridRows.map((gridRow) => {
+                      const period = gridRow.period;
                       const weekday = WEEKDAYS[activeDayIdx];
                       const range = periodRangeIn(schedule, period, period);
                       return <li key={period}>
@@ -459,8 +468,10 @@ export function CommonAvailability() {
                 <ul className="free-run-list">
                   {visibleRuns.map((run) => {
                     const weekdayIndex = WEEKDAYS.indexOf(run.weekday);
-                    const range = periodRangeIn(schedule, run.startPeriod, run.endPeriod);
-                    const minutes = range ? periodRangeMinutesIn(schedule, run.startPeriod, run.endPeriod)! : null;
+                    const startRow = gridRows[run.startPeriod - 1];
+                    const endRow = gridRows[run.endPeriod - 1];
+                    const range = startRow && endRow ? { start: startRow.timeText.split("–")[0], end: endRow.timeText.split("–")[1] } : null;
+                    const minutes = startRow && endRow ? { startMin: startRow.startMin, endMin: endRow.endMin } : null;
                     const runKey = `${run.weekday}-${run.startPeriod}`;
                     const copyLabel = `${longDateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周${weekdayLabels[run.weekday]}）${range ? `${range.start}–${range.end}` : ""} 大家都有空 · 来自课隙 OpenPeriod`;
                     return <li key={runKey}>
@@ -478,7 +489,7 @@ export function CommonAvailability() {
         </section>
       ) : null}
 
-      {selectedSlot && <div className="detail-backdrop" role="presentation" onMouseDown={() => setSelectedSlot(null)}><section ref={detailRef} tabIndex={-1} className="slot-detail" role="dialog" aria-modal="true" aria-labelledby="slot-title" onMouseDown={(event) => event.stopPropagation()}><button className="detail-close" type="button" onClick={() => setSelectedSlot(null)} aria-label="关闭">×</button><p className="eyebrow">SLOT DETAIL</p><h2 id="slot-title">周{weekdayLabels[selectedSlot.weekday]} · 第 {selectedSlot.period} 节</h2>{slotDetailRange && activeGroup && <p className="detail-meta">{longDateLabel(activeGroup.semester.startDate, week, slotDetailWeekdayIndex)}（周{weekdayLabels[selectedSlot.weekday]}）{slotDetailRange.start}–{slotDetailRange.end}</p>}<div className={selectedSlot.slot.commonFree ? "detail-summary free" : "detail-summary"}><strong>{selectedSlot.slot.freeCount} / {selectedSlot.slot.selectedUsers}</strong><span>{selectedSlot.slot.commonFree ? "全部有空" : "人有空"}</span></div>{unrecordedCount > 0 && <p className="detail-note">注意：{unrecordedCount} 位所选成员尚未录入课表，TA 们按全天空闲计算。</p>}<ul>{selectedSlot.slot.details.map((detail) => <li key={detail.userId}><span className={detail.free ? "status-free" : "status-busy"}>{detail.free ? "✓" : "●"}</span><strong>{detail.nickname}</strong><small>{detail.free ? "空闲" : detail.label}</small></li>)}</ul><div className="detail-actions"><button type="button" className="copy-time" onClick={() => copyRunText(`detail-${selectedSlot.weekday}-${selectedSlot.period}`, `${longDateLabel(activeGroup!.semester.startDate, week, slotDetailWeekdayIndex)}（周${weekdayLabels[selectedSlot.weekday]}）${slotDetailRange ? `${slotDetailRange.start}–${slotDetailRange.end}` : ""}，${selectedSlot.slot.freeCount}/${selectedSlot.slot.selectedUsers} 人有空 · 来自课隙 OpenPeriod`)}>{copiedKey === `detail-${selectedSlot.weekday}-${selectedSlot.period}` ? "已复制 ✓" : "复制时间信息"}</button></div><p className="privacy-hint">私人忙碌标题与“本周不去”状态不会对其他成员公开。</p></section></div>}
+      {selectedSlot && <div className="detail-backdrop" role="presentation" onMouseDown={() => setSelectedSlot(null)}><section ref={detailRef} tabIndex={-1} className="slot-detail" role="dialog" aria-modal="true" aria-labelledby="slot-title" onMouseDown={(event) => event.stopPropagation()}><button className="detail-close" type="button" onClick={() => setSelectedSlot(null)} aria-label="关闭">×</button><p className="eyebrow">SLOT DETAIL</p><h2 id="slot-title">周{weekdayLabels[selectedSlot.weekday]} · 第 {selectedSlot.period} 节</h2>{slotDetailRange && activeGroup && <p className="detail-meta">{longDateLabel(activeGroup.semester.startDate, week, slotDetailWeekdayIndex)}（周{weekdayLabels[selectedSlot.weekday]}）{slotDetailRange}</p>}<div className={selectedSlot.slot.commonFree ? "detail-summary free" : "detail-summary"}><strong>{selectedSlot.slot.freeCount} / {selectedSlot.slot.selectedUsers}</strong><span>{selectedSlot.slot.commonFree ? "全部有空" : "人有空"}</span></div>{unrecordedCount > 0 && <p className="detail-note">注意：{unrecordedCount} 位所选成员尚未录入课表，TA 们按全天空闲计算。</p>}<ul>{selectedSlot.slot.details.map((detail) => <li key={detail.userId}><span className={detail.free ? "status-free" : "status-busy"}>{detail.free ? "✓" : "●"}</span><strong>{detail.nickname}</strong><small>{detail.free ? "空闲" : detail.label}</small></li>)}</ul><div className="detail-actions"><button type="button" className="copy-time" onClick={() => copyRunText(`detail-${selectedSlot.weekday}-${selectedSlot.period}`, `${longDateLabel(activeGroup!.semester.startDate, week, slotDetailWeekdayIndex)}（周${weekdayLabels[selectedSlot.weekday]}）${slotDetailRange}，${selectedSlot.slot.freeCount}/${selectedSlot.slot.selectedUsers} 人有空 · 来自课隙 OpenPeriod`)}>{copiedKey === `detail-${selectedSlot.weekday}-${selectedSlot.period}` ? "已复制 ✓" : "复制时间信息"}</button></div><p className="privacy-hint">私人忙碌标题与“本周不去”状态不会对其他成员公开。</p></section></div>}
     </AppShell>
   );
 }

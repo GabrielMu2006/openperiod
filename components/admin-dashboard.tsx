@@ -1,6 +1,7 @@
 "use client";
 
-import { getScheduleById } from "@/src/config/school-schedules";
+import { getScheduleById, listSchedulePresets } from "@/src/config/school-schedules";
+import { ThemedSelect } from "@/components/themed-select";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type AdminAccount = {
@@ -73,6 +74,7 @@ export function AdminDashboard() {
   const [groupQuery, setGroupQuery] = useState("");
   const [feedbackList, setFeedbackList] = useState<FeedbackList | null>(null);
   const [feedbackPendingId, setFeedbackPendingId] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("all");
 
   const load = useCallback(async (key: string) => {
     setBusy(true);
@@ -161,9 +163,15 @@ export function AdminDashboard() {
   const filteredAccounts = useMemo(() => {
     if (!accounts) return [];
     const needle = accountQuery.trim().toLowerCase();
-    if (!needle) return accounts.items;
-    return accounts.items.filter((item) => includes(item.email, needle) || includes(item.nickname, needle));
-  }, [accounts, accountQuery]);
+    return accounts.items.filter((item) => {
+      if (schoolFilter !== "all") {
+        const school = item.scheduleId ?? "";
+        if (schoolFilter === "__unset__" ? school !== "" : school !== schoolFilter) return false;
+      }
+      if (!needle) return true;
+      return includes(item.email, needle) || includes(item.nickname, needle);
+    });
+  }, [accounts, accountQuery, schoolFilter]);
 
   const filteredGroups = useMemo(() => {
     if (!groupsList) return [];
@@ -241,7 +249,22 @@ export function AdminDashboard() {
           <section className="admin-card" aria-labelledby="admin-accounts">
             <div className="admin-card-head">
               <h2 id="admin-accounts">全部账号（{accounts?.total ?? 0}）</h2>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 170 }}>
+                <ThemedSelect
+                  searchable
+                  value={schoolFilter}
+                  ariaLabel="按学校筛选"
+                  placeholder="全部学校"
+                  groups={[
+                    { label: "筛选", options: [{ value: "all", label: "全部学校" }, { value: "__unset__", label: "未设置学校" }] },
+                    { label: "学校", options: listSchedulePresets().map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
+                  ]}
+                  onChange={setSchoolFilter}
+                />
+              </div>
               <input type="search" value={accountQuery} onChange={(event) => setAccountQuery(event.target.value)} placeholder="搜索邮箱或昵称" aria-label="搜索账号" />
+              </div>
             </div>
             {filteredAccounts.length === 0 ? (
               <p className="admin-note">{accountQuery ? "没有匹配的账号。" : "还没有任何账号。"}</p>

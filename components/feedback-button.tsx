@@ -15,6 +15,12 @@ export function FeedbackButton() {
   const cardRef = useDialogBehavior(open, () => setOpen(false), false);
 
   useEffect(() => {
+    function openFeedback() { setOpen(true); setError(""); }
+    window.addEventListener("op:open-feedback", openFeedback);
+    return () => window.removeEventListener("op:open-feedback", openFeedback);
+  }, []);
+
+  useEffect(() => {
     if (!done) return;
     const timer = setTimeout(() => {
       setOpen(false);

@@ -7,6 +7,7 @@ import { useDialogBehavior } from "@/components/dialog-behavior";
 import { WEEKDAYS, type Weekday } from "@/src/domain/schedule";
 import { buildEndOptions, buildPeriodOptions, getScheduleForSemester, schedulePeriodCount } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
+import { PeriodFields, periodModeTabs, type PeriodMode } from "@/components/period-mode-fields";
 import { parseWeekRule } from "@/src/domain/week-rules";
 
 const dayLabels: Record<Weekday, string> = {
@@ -43,7 +44,7 @@ interface BusyDTO {
 
 interface ScheduleDTO {
   week: number;
-  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; scheduleId?: string | null; schedule?: { rows: { start: string; end: string; label?: string }[] } };
+  semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; scheduleId?: string | null; schedule?: { id: string; school: string; kind: "period" | "block"; rows: { start: string; end: string; label?: string }[]; blocks?: { label: string; from: number; to: number }[] } };
   courses: CourseDTO[];
   busyBlocks: BusyDTO[];
 }
@@ -107,6 +108,22 @@ export function MySchedule() {
   const [swipeHintVisible, setSwipeHintVisible] = useState(true);
   const [retryKey, setRetryKey] = useState(0);
   const mySchedule = schedule?.semester.schedule ?? getScheduleForSemester(schedule?.semester);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [showInfoBanner, setShowInfoBanner] = useState(false);
+  const infoRef = useDialogBehavior(infoOpen, () => setInfoOpen(false), false);
+  const scheduleKey = schedule ? (schedule.semester.schedule?.id ?? schedule.semester.scheduleId ?? "pku") : "pku";
+
+  // 首次进入或更换学校后，提醒核对节次时间
+  useEffect(() => {
+    if (!schedule) return;
+    setShowInfoBanner(localStorage.getItem("op-schedule-info-seen") !== scheduleKey);
+  }, [schedule, scheduleKey]);
+
+  function openScheduleInfo() {
+    setInfoOpen(true);
+    localStorage.setItem("op-schedule-info-seen", scheduleKey);
+    setShowInfoBanner(false);
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -203,8 +220,9 @@ export function MySchedule() {
   return (
     <AppShell active="schedule">
       <div className="schedule-page">
-        <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester}` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
+        <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester}` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><button type="button" onClick={() => openScheduleInfo()}>查看课表信息</button><a href="/import">导入 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>＋ 添加课程</button><button className="busy-action" type="button" onClick={() => setSelection({ type: "busy" })}>＋ 标记忙碌</button></div></div>
         {error && <div className="page-error" role="alert">{error}<button type="button" onClick={() => { setError(""); setRetryKey((key) => key + 1); }}>重试</button></div>}
+        {showInfoBanner && schedule && <div className="schedule-info-banner" role="status"><span>你的课表按「{schedule.semester.schedule?.school ?? "北京大学"}」作息显示，建议核对节次与时间是否正确。</span><span className="banner-actions"><button type="button" onClick={() => openScheduleInfo()}>查看课表信息</button><button type="button" className="link-button" onClick={() => { localStorage.setItem("op-schedule-info-seen", scheduleKey); setShowInfoBanner(false); }}>我知道了</button></span></div>}
         {notice && <div className="page-success" role="status">{notice.text}{notice.undo && <button type="button" className="link-button" onClick={notice.undo}>撤销</button>}{snapshotId && <button type="button" className="link-button" disabled={restoring} onClick={restoreSnapshot}>{restoring ? "恢复中…" : "恢复导入前的课表"}</button>}</div>}
         {schedule && week !== null ? <>
           <div className="my-week-switcher"><button type="button" aria-label="上一周" disabled={week <= 1} onClick={() => setWeek((value) => Math.max(1, (value ?? 1) - 1))}>‹</button><strong>第 {week} 周 {week === schedule.semester.currentWeek && <em>本周</em>}</strong><button type="button" aria-label="下一周" disabled={week >= schedule.semester.weekCount} onClick={() => setWeek((value) => Math.min(schedule.semester.weekCount, (value ?? 1) + 1))}>›</button></div>
@@ -215,7 +233,8 @@ export function MySchedule() {
             {visibleCourses.map(({ course, meeting }) => <button type="button" className={`my-course-block ${meeting.skippedThisWeek ? "skipped" : ""}`} style={{ gridColumn: WEEKDAYS.indexOf(meeting.weekday) + 2, gridRow: `${meeting.startPeriod + 1} / ${meeting.endPeriod + 2}` }} onClick={() => setSelection({ type: "course", course, meetingId: meeting.id })} key={meeting.id}><strong>{course.name}</strong><span>{course.location || `${meeting.startPeriod}–${meeting.endPeriod} 节`}</span>{meeting.skippedThisWeek && <em>本周不去</em>}</button>)}
             {visibleBusy.map((block) => <button type="button" className="my-busy-block" style={{ gridColumn: WEEKDAYS.indexOf(block.weekday) + 2, gridRow: `${block.startPeriod + 1} / ${block.endPeriod + 2}` }} onClick={() => setSelection({ type: "busy", block })} key={block.id}><strong>{block.title || "忙碌"}</strong><span>{block.kind === "ONE_TIME" ? `仅第 ${block.weeks.join(",")} 周` : "周期"}</span></button>)}
           </div><span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true">← 表格可左右滑动 →</span></div>}
-          <div className="my-schedule-legend"><span><i className="course" />课程</span><span><i className="busy" />私人忙碌</span><span><i className="skipped" />本周不去</span><small>私人忙碌标题与 Skip 状态不会对其他成员公开。</small></div>
+          {infoOpen && mySchedule && <div className="detail-backdrop" role="presentation" onMouseDown={() => setInfoOpen(false)}><section ref={infoRef} tabIndex={-1} className="schedule-editor info-editor" role="dialog" aria-modal="true" aria-labelledby="schedule-info-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">SCHEDULE INFO</p><h2 id="schedule-info-title">{mySchedule.school}作息（{mySchedule.rows.length} 节）</h2></div><button type="button" aria-label="关闭" onClick={() => setInfoOpen(false)}>×</button></header><div className="editor-body"><table className="info-period-table"><thead><tr><th>节次</th><th>时间</th></tr></thead><tbody>{mySchedule.rows.map((row, index) => <tr key={index}><td>{row.label ?? "第 " + (index + 1) + " 节"}</td><td>{row.start} – {row.end}</td></tr>)}</tbody></table><p className="admin-note">手动添加课程/忙碌时，这里的节次号与上表一一对应。如果时间与你们学校的实际作息不符，请告诉我们。</p><div className="feedback-meta"><button type="button" onClick={() => { window.dispatchEvent(new CustomEvent("op:open-feedback")); setInfoOpen(false); }}>有问题，去反馈</button><button type="button" className="link-button" onClick={() => setInfoOpen(false)}>关闭</button></div></div></section></div>}
+      <div className="my-schedule-legend"><span><i className="course" />课程</span><span><i className="busy" />私人忙碌</span><span><i className="skipped" />本周不去</span><small>私人忙碌标题与 Skip 状态不会对其他成员公开。</small></div>
         </> : !error && <div className="preview-loading">正在读取个人课表…</div>}
       </div>
       {selection?.type === "course" && schedule && <CourseEditor selection={selection} week={schedule.week} semesterStartDate={schedule.semester.startDate} scheduleInfo={schedule.semester.schedule} busyBlocks={schedule.busyBlocks} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} onSkipChange={handleSkipChange} />}
@@ -369,6 +388,7 @@ function BusyEditor({ scheduleInfo, selection, week, courses, onClose, onSaved, 
   // 新增时默认「仅本周」（当前查看周）；已有的一次性忙碌按自定义周展示，避免编辑时被悄悄改成当前周
   const initialRepeat = block ? (block.kind === "ONE_TIME" ? "CUSTOM" : weeksText(block.weeks) === "1-16" ? "EVERY" : weeksText(block.weeks) === "单周" ? "ODD" : weeksText(block.weeks) === "双周" ? "EVEN" : "CUSTOM") : "THIS_WEEK";
   const [title, setTitle] = useState(block?.title ?? "");
+  const [busyMode, setBusyMode] = useState<PeriodMode>("school");
   const [weekday, setWeekday] = useState<Weekday>(block?.weekday ?? "monday");
   const [startPeriod, setStartPeriod] = useState(block?.startPeriod ?? 1);
   const [endPeriod, setEndPeriod] = useState(block?.endPeriod ?? 2);
@@ -417,7 +437,7 @@ function BusyEditor({ scheduleInfo, selection, week, courses, onClose, onSaved, 
 
   return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor busy-editor" role="dialog" aria-modal="true" aria-labelledby="busy-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">PRIVATE BUSY</p><h2 id="busy-editor-title">{block ? "编辑忙碌" : "标记忙碌"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body">
     <label>标题（可选，仅自己可见）<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="例如：组会" autoFocus /></label>
-    <div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><label>开始<ThemedSelect searchable value={String(startPeriod)} ariaLabel="开始节次" groups={[{ options: buildPeriodOptions(scheduleInfo ?? { rows: [] }) }]} onChange={(next) => { const n = Number(next); setStartPeriod(n); setEndPeriod((current) => Math.max(current, n)); }} /></label><label>结束<ThemedSelect searchable value={String(endPeriod)} ariaLabel="结束节次" groups={[{ options: buildEndOptions(scheduleInfo ?? { rows: [] }, startPeriod) }]} onChange={(next) => setEndPeriod(Number(next))} /></label></div>
+    <div className="mode-tabs busy-mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={busyMode === tab.key ? "on" : ""} onClick={() => setBusyMode(tab.key)}>{tab.label}</button>)}</div><div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><PeriodFields mode={busyMode} scheduleInfo={scheduleInfo} startPeriod={startPeriod} endPeriod={endPeriod} onChange={(start, end) => { setStartPeriod(start); setEndPeriod(Math.max(start, end)); }} /></div>
     <ConflictBox conflicts={conflicts} kind="busy" />
     <fieldset><legend>重复</legend>{[["THIS_WEEK", "仅本周"], ["EVERY", "每周"], ["ODD", "单周"], ["EVEN", "双周"], ["CUSTOM", "自定义"]].map(([value, label]) => <label className="radio-option" key={value}><input type="radio" name="repeat" value={value} checked={repeat === value} onChange={() => setRepeat(value)} />{label}</label>)}</fieldset>
     {repeat === "CUSTOM" && <>

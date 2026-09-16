@@ -24,13 +24,13 @@ describe("跨校可用性的日期与钟点换算", () => {
     const pku = rangesFor(null, GROUP_START, 1, [
       { weekday: 1, startPeriod: 3, endPeriod: 4, weeks: [1] },
     ]);
-    expect(pku.monday).toEqual([{ startMin: 610, endMin: 720 }]);
+    expect(pku.ranges.monday).toEqual([{ startMin: 610, endMin: 720 }]);
 
     // 对外经贸成员：周一第一大节 = 小节 1-2 = 08:00–09:30
     const uibe = rangesFor("uibe", GROUP_START, 1, [
       { weekday: 1, startPeriod: 1, endPeriod: 2, weeks: [1] },
     ]);
-    expect(uibe.monday).toEqual([{ startMin: 480, endMin: 570 }]);
+    expect(uibe.ranges.monday).toEqual([{ startMin: 480, endMin: 570 }]);
 
     // 两个区间在钟点轴上不重叠：09:30–10:10 是两人共同空闲
   });
@@ -40,13 +40,13 @@ describe("跨校可用性的日期与钟点换算", () => {
     const lateStart = rangesFor(null, "2026-09-14", 1, [
       { weekday: 1, startPeriod: 3, endPeriod: 4, weeks: [1] },
     ]);
-    expect(lateStart.monday).toEqual([]);
+    expect(lateStart.ranges.monday).toEqual([]);
 
     // 群的第 2 周一（9/14）恰好是该校第 1 周：课表生效
     const aligned = rangesFor(null, "2026-09-14", 2, [
       { weekday: 1, startPeriod: 3, endPeriod: 4, weeks: [1] },
     ]);
-    expect(aligned.monday).toHaveLength(1);
+    expect(aligned.ranges.monday).toHaveLength(1);
   });
 
   it("跳过周（SKIP）与周次范围照常生效", () => {
@@ -63,7 +63,7 @@ describe("跨校可用性的日期与钟点换算", () => {
       busyBlocks: [],
       skippedMeetingIds: new Set(["m1"]),
     });
-    expect(notSkipped.monday).toEqual([]);
+    expect(notSkipped.ranges.monday).toEqual([]);
 
     const outOfRange = buildMemberRanges({
       memberSchedule: getScheduleById(null),
@@ -75,7 +75,7 @@ describe("跨校可用性的日期与钟点换算", () => {
       busyBlocks: [],
       skippedMeetingIds: new Set(),
     });
-    expect(outOfRange.monday).toEqual([]);
+    expect(outOfRange.ranges.monday).toEqual([]);
   });
 
   it("UIBE 预设行的时间网格保持单调", () => {

@@ -834,3 +834,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .tsel-option.selected { color: var(--brand-800, #2f6b4f); font-weight: 750; }
 .tsel-check { color: var(--brand-800, #2f6b4f); font-weight: 800; }
 .tsel-empty { padding: 12px 10px; color: var(--text-tertiary); font-size: 13px; }
+
+.schedule-info-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 10px 0; padding: 10px 14px; border: 1px solid hsl(35 60% 84%); border-radius: 10px; background: hsl(35 70% 95%); font-size: 13px; color: hsl(30 35% 30%); }
+.schedule-info-banner .banner-actions { display: flex; gap: 8px; }
+.schedule-info-banner button { min-height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-warm); font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.info-period-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-bottom: 12px; }
+.info-period-table th, .info-period-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid hsl(35 25% 92%); }
+.info-period-table th { color: var(--text-tertiary); font-size: 11.5px; }
+.info-period-table td { font-variant-numeric: tabular-nums; }
