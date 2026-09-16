@@ -43,6 +43,13 @@
       "when": 1789388309869,
       "tag": "0005_custom_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789388369869,
+      "tag": "0006_feedback",
+      "breakpoints": true
     }
   ]
 }

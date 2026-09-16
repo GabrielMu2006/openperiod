@@ -795,3 +795,27 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .school-picker small { color: var(--text-tertiary); font-size: 12px; }
 
 .settings-school-select { min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; font-size: 14px; max-width: 360px; width: 100%; }
+
+/* ─── 全站反馈入口 ─── */
+.feedback-fab { position: fixed; right: 18px; bottom: 18px; z-index: 40; min-height: 40px; padding: 0 16px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-warm); color: var(--text-secondary); font-size: 13px; font-weight: 700; box-shadow: 0 4px 14px rgb(0 0 0 / 8%); cursor: pointer; }
+.feedback-fab:hover { color: var(--text-primary); filter: brightness(1.03); }
+.feedback-card { position: relative; width: min(520px, calc(100vw - 40px)); padding: 20px 22px 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-warm); box-shadow: 0 12px 40px rgb(0 0 0 / 14%); }
+.feedback-card h2 { font-size: 18px; margin: 2px 0 12px; }
+.feedback-card textarea { width: 100%; resize: vertical; min-height: 120px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; font-size: 14px; line-height: 1.6; }
+.feedback-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.feedback-meta small { color: var(--text-tertiary); font-size: 12px; }
+.feedback-meta button { min-height: 38px; padding: 0 18px; border: 0; border-radius: 9px; background: var(--brand-800, #2f6b4f); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.feedback-meta button:disabled { opacity: 0.55; cursor: default; }
+.feedback-done { padding: 18px 0 8px; text-align: center; font-size: 15px; font-weight: 700; color: hsl(150 45% 30%); }
+.feedback-admin-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.feedback-admin-list li { padding: 12px 4px; border-bottom: 1px solid hsl(35 25% 92%); }
+.feedback-admin-list li:last-child { border-bottom: 0; }
+.feedback-admin-list li.handled { opacity: 0.55; }
+.feedback-admin-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.feedback-admin-head small { color: var(--text-tertiary); font-size: 11.5px; }
+.feedback-admin-head button { margin-left: auto; min-height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-warm); font-size: 12px; cursor: pointer; }
+.feedback-admin-list p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+@media (max-width: 639px) {
+  .feedback-fab { right: 12px; bottom: 78px; }
+  .feedback-admin-head button { margin-left: 0; }
+}

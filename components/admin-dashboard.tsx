@@ -24,6 +24,19 @@ type AdminGroup = {
   createdAt: string;
 };
 
+type AdminFeedback = {
+  id: string;
+  content: string;
+  page: string | null;
+  userAgent: string | null;
+  handled: boolean;
+  createdAt: string;
+  nickname: string | null;
+  email: string | null;
+};
+
+type FeedbackList = { total: number; unhandled: number; truncated: boolean; items: AdminFeedback[] };
+
 type Overview = {
   generatedAt: string;
   accounts: { total: number; truncated: boolean; items: AdminAccount[] };
@@ -49,6 +62,8 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [accountQuery, setAccountQuery] = useState("");
   const [groupQuery, setGroupQuery] = useState("");
+  const [feedbackList, setFeedbackList] = useState<FeedbackList | null>(null);
+  const [feedbackPendingId, setFeedbackPendingId] = useState("");
 
   const load = useCallback(async (key: string) => {
     setBusy(true);
@@ -73,13 +88,45 @@ export function AdminDashboard() {
     }
   }, []);
 
+  const loadFeedback = useCallback(async (key: string) => {
+    try {
+      const response = await fetch("/api/admin/feedback", { headers: { "x-admin-key": key }, cache: "no-store" });
+      if (!response.ok) return;
+      setFeedbackList((await response.json()) as FeedbackList);
+    } catch {
+      /* 反馈列表加载失败不打断主视图 */
+    }
+  }, []);
+
+  const markHandled = useCallback(async (id: string, handled: boolean) => {
+    if (!savedKey) return;
+    setFeedbackPendingId(id);
+    try {
+      const response = await fetch("/api/admin/feedback", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-admin-key": savedKey },
+        body: JSON.stringify({ id, handled }),
+      });
+      if (response.ok) {
+        setFeedbackList((current) => current ? {
+          ...current,
+          unhandled: current.unhandled + (handled ? -1 : 1),
+          items: current.items.map((item) => item.id === id ? { ...item, handled } : item),
+        } : current);
+      }
+    } finally {
+      setFeedbackPendingId("");
+    }
+  }, [savedKey]);
+
   useEffect(() => {
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
       setSavedKey(stored);
       void load(stored);
+      void loadFeedback(stored);
     }
-  }, [load]);
+  }, [load, loadFeedback]);
 
   async function submit() {
     const trimmed = keyInput.trim();
@@ -88,6 +135,7 @@ export function AdminDashboard() {
       sessionStorage.setItem(STORAGE_KEY, trimmed);
       setSavedKey(trimmed);
       setKeyInput("");
+      void loadFeedback(trimmed);
     }
   }
 
@@ -154,7 +202,7 @@ export function AdminDashboard() {
         </div>
         <div className="admin-header-actions">
           <span className="admin-badge">只读</span>
-          <button type="button" onClick={() => void load(savedKey)} disabled={busy}>
+          <button type="button" onClick={() => { void load(savedKey); void loadFeedback(savedKey); }} disabled={busy}>
             {busy ? "刷新中…" : "刷新"}
           </button>
           <button type="button" className="admin-quiet" onClick={signOut}>
@@ -178,6 +226,7 @@ export function AdminDashboard() {
             <div><strong>{accounts?.items.filter((item) => item.placeholder).length ?? 0}</strong><span>未设昵称</span></div>
             <div><strong>{accounts?.items.filter((item) => item.courseCount > 0).length ?? 0}</strong><span>已录课表</span></div>
             <div><strong>{groupsList?.total ?? 0}</strong><span>群组总数</span></div>
+            <div><strong>{feedbackList?.unhandled ?? 0}</strong><span>未处理反馈</span></div>
           </div>
 
           <section className="admin-card" aria-labelledby="admin-accounts">
@@ -239,6 +288,35 @@ export function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </section>
+
+          <section className="admin-card" aria-labelledby="admin-feedback">
+            <div className="admin-card-head">
+              <h2 id="admin-feedback">全部反馈（{feedbackList?.total ?? 0}）</h2>
+              {feedbackList?.truncated && <small className="admin-note">仅显示最近 200 条</small>}
+            </div>
+            {(feedbackList?.items.length ?? 0) === 0 ? (
+              <p className="admin-note">还没有收到任何反馈。</p>
+            ) : (
+              <ul className="feedback-admin-list">
+                {feedbackList!.items.map((item) => (
+                  <li key={item.id} className={item.handled ? "handled" : ""}>
+                    <div className="feedback-admin-head">
+                      <strong>{item.nickname ?? "匿名用户"}</strong>
+                      <small>{item.email ?? ""} · {formatTime(item.createdAt)}{item.page ? ` · 页面 ${item.page}` : ""}</small>
+                      <button
+                        type="button"
+                        disabled={feedbackPendingId === item.id}
+                        onClick={() => void markHandled(item.id, !item.handled)}
+                      >
+                        {item.handled ? "标为未处理" : "标为已处理"}
+                      </button>
+                    </div>
+                    <p>{item.content}</p>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         </>

@@ -1,4 +1,5 @@
 import {
+  boolean,
   check,
   date,
   index,
@@ -233,3 +234,20 @@ export const importSnapshots = pgTable(
 );
 
 export type UserRow = typeof users.$inferSelect;
+
+// 用户反馈：任何页面可提交（未登录也允许匿名），项目所有者在 /admin 查看
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    content: text("content").notNull(),
+    page: varchar("page", { length: 120 }),
+    userAgent: varchar("user_agent", { length: 512 }),
+    handled: boolean("handled").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("feedback_created_at_idx").on(table.createdAt)],
+);
+
+export type FeedbackRow = typeof feedback.$inferSelect;

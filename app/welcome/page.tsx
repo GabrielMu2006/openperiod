@@ -1,6 +1,8 @@
+import { FeedbackButton } from "@/components/feedback-button";
 export default function WelcomePage() {
   return (
     <main className="form-page">
+        <FeedbackButton />
       <section className="form-card welcome-card">
         <div className="identity-brand" aria-hidden="true">
           <span className="logo-mark"><i /><i /></span>

@@ -1,8 +1,8 @@
-import { timingSafeEqual } from "node:crypto";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDatabase } from "@/src/server/db";
 import { courses, groupMembers, groups, users } from "@/src/server/db/schema";
 import { isPlaceholderNickname } from "@/src/domain/identity";
+import { rejectUnlessAdmin } from "@/src/server/admin";
 import { errorResponse } from "@/src/server/http";
 
 export const runtime = "nodejs";
@@ -11,19 +11,9 @@ export const dynamic = "force-dynamic";
 // 只读站点总览：仅服务项目所有者，凭 ADMIN_KEY 访问，不提供任何写操作。
 const ITEM_LIMIT = 500;
 
-function keyMatches(provided: string, expected: string | undefined) {
-  if (!expected) return false;
-  const a = Buffer.from(provided, "utf8");
-  const b = Buffer.from(expected, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function GET(request: Request) {
-  const provided = request.headers.get("x-admin-key") ?? "";
-  if (!keyMatches(provided, process.env.ADMIN_KEY)) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    return Response.json({ error: "管理密钥未配置或不正确" }, { status: 401 });
-  }
+  const denied = await rejectUnlessAdmin(request);
+  if (denied) return denied;
 
   try {
     const db = getDatabase();

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { FeedbackButton } from "@/components/feedback-button";
 
 const navItems = [
   { key: "availability", label: "共同空闲", href: "/", icon: "▦" },
@@ -75,6 +76,7 @@ export function AppShell({ active, topbarCenter, sidebarNote, children }: AppShe
 
   return (
     <div className="app-frame">
+      <FeedbackButton />
       <header className="topbar">
         <a className="brand" href="/" aria-label="课隙首页"><span className="logo-mark" aria-hidden="true"><i /><i /></span><span><strong>课隙</strong><small>OpenPeriod</small></span></a>
         {topbarCenter}

@@ -1,4 +1,5 @@
 import { IdentityForm } from "@/components/identity-form";
+import { FeedbackButton } from "@/components/feedback-button";
 import { isEmailVerificationEnabled } from "@/src/server/auth/verification";
 
 // 验证开关取决于运行环境的 DirectMail 配置，不能在构建期固化
@@ -8,6 +9,7 @@ export default function LoginPage() {
   const verificationEnabled = isEmailVerificationEnabled();
   return (
     <main className="identity-page">
+        <FeedbackButton />
       <section className="identity-card">
         <div className="identity-brand" aria-hidden="true">
           <span className="logo-mark"><i /><i /></span>
