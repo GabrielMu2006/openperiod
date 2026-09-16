@@ -1,11 +1,13 @@
 "use client";
 
+import { getScheduleById } from "@/src/config/school-schedules";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type AdminAccount = {
   id: string;
   email: string;
   nickname: string;
+  scheduleId?: string | null;
   placeholder: boolean;
   verified: boolean;
   privacy: number;
@@ -45,6 +47,13 @@ type Overview = {
 
 const STORAGE_KEY = "op-admin-key";
 const privacyLabels: Record<number, string> = { 0: "仅忙/闲", 1: "课程名称", 2: "完整课程" };
+
+function schoolNameOf(scheduleId: string | null | undefined) {
+  if (!scheduleId) return "未设置";
+  const preset = getScheduleById(scheduleId);
+  if (preset.id !== scheduleId) return "未设置";
+  return preset.school + (preset.variant ? "（" + preset.variant + "）" : "");
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -240,13 +249,14 @@ export function AdminDashboard() {
               <div className="admin-table-scroll">
                 <table className="admin-table">
                   <thead>
-                    <tr><th>邮箱</th><th>昵称</th><th>邮箱验证</th><th>默认隐私</th><th>课程</th><th>群组</th><th>注册时间</th><th>内部 ID</th></tr>
+                    <tr><th>邮箱</th><th>昵称</th><th>学校</th><th>邮箱验证</th><th>默认隐私</th><th>课程</th><th>群组</th><th>注册时间</th><th>内部 ID</th></tr>
                   </thead>
                   <tbody>
                     {filteredAccounts.map((item) => (
                       <tr key={item.id}>
                         <td>{item.email}</td>
                         <td>{item.nickname}{item.placeholder && <em className="admin-flag">占位</em>}</td>
+                        <td>{item.scheduleId ? schoolNameOf(item.scheduleId) : "未设置"}</td>
                         <td>{item.verified ? "已验证" : "未验证"}</td>
                         <td>{privacyLabels[item.privacy] ?? item.privacy}</td>
                         <td>{item.courseCount}</td>

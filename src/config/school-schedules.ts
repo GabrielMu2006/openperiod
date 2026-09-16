@@ -708,3 +708,25 @@ export function periodRangeMinutesIn(schedule: { rows: ScheduleRow[] }, startPer
   if (!range) return null;
   return { startMin: toMinutes(range.start), endMin: toMinutes(range.end) };
 }
+
+export interface PeriodChoice { value: string; label: string }
+
+function labelForRow(rows: ScheduleRow[], blocks: ScheduleBlock[] | undefined, index: number): string {
+  const period = index + 1;
+  const row = rows[index];
+  const block = blocks?.find((item) => period >= item.from && period <= item.to);
+  if (block) return block.label + " " + row.start + "–" + row.end;
+  return "第 " + period + " 节 " + row.start + "–" + row.end;
+}
+
+/** 编辑器的「开始节次」选项（带时间与大节上下文） */
+export function buildPeriodOptions(schedule: { rows: ScheduleRow[]; blocks?: ScheduleBlock[] }): PeriodChoice[] {
+  return schedule.rows.map((_, index) => ({ value: String(index + 1), label: labelForRow(schedule.rows, schedule.blocks, index) }));
+}
+
+/** 编辑器的「结束节次」选项：不早于开始节次 */
+export function buildEndOptions(schedule: { rows: ScheduleRow[]; blocks?: ScheduleBlock[] }, startPeriod: number): PeriodChoice[] {
+  return schedule.rows
+    .map((_, index) => ({ value: String(index + 1), label: labelForRow(schedule.rows, schedule.blocks, index) }))
+    .filter((choice) => Number(choice.value) >= startPeriod);
+}
