@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listSchedulePresets } from "@/src/config/school-schedules";
+import { ThemedSelect } from "@/components/themed-select";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import type { PrivacyLevel } from "@/src/domain/schedule";
@@ -123,17 +124,19 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
         <section className="settings-card" aria-labelledby="settings-school">
           <h2 id="settings-school">我的学校</h2>
           <p className="settings-note">决定课表的节次网格与导入模板；之后新建的群组会使用这所学校的作息。</p>
-          <select
-            className="settings-school-select"
+          <ThemedSelect
+            searchable
             value={scheduleId}
             disabled={!user}
-            aria-label="我的学校"
-            onChange={(event) => { setScheduleId(event.target.value); setSaved(false); setSaveError(""); }}
-          >
-            {listSchedulePresets().map((preset) => (
-              <option value={preset.id} key={preset.id}>{preset.school}{preset.variant ? `（${preset.variant}）` : ""}</option>
-            ))}
-          </select>
+            ariaLabel="我的学校"
+            placeholder="输入学校名筛选，如：复旦"
+            emptyText="没有匹配的学校"
+            groups={[
+              { label: "按小节排课（一节 40–50 分钟）", options: listSchedulePresets().filter((preset) => preset.kind === "period").map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
+              { label: "按大节排课（一节 80 分钟以上）", options: listSchedulePresets().filter((preset) => preset.kind === "block").map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
+            ]}
+            onChange={(next) => { setScheduleId(next); setSaved(false); setSaveError(""); }}
+          />
         </section>
 
         <section className="settings-card" aria-labelledby="settings-privacy">

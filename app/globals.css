@@ -819,3 +819,18 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .feedback-fab { right: 12px; bottom: 78px; }
   .feedback-admin-head button { margin-left: 0; }
 }
+
+/* ─── 主题化下拉/组合框（替代原生 select） ─── */
+.tsel { position: relative; }
+.tsel-input { width: 100%; min-height: 44px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; font-size: 14px; color: var(--text-primary); cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.tsel-input:focus { outline: none; border-color: var(--brand-800, #2f6b4f); box-shadow: 0 0 0 3px hsl(150 40% 30% / 12%); }
+.tsel-input::placeholder { color: var(--text-tertiary); }
+.tsel-chevron { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 12px; transition: transform 140ms ease; }
+.tsel.open .tsel-chevron { transform: translateY(-50%) rotate(180deg); }
+.tsel-panel { position: absolute; z-index: 36; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; background: var(--surface-warm); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 36px rgb(60 45 30 / 14%); max-height: 302px; overflow: auto; }
+.tsel-group { pointer-events: none; padding: 9px 10px 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; color: var(--text-tertiary); }
+.tsel-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 8px; font-size: 13.5px; color: var(--text-primary); cursor: pointer; }
+.tsel-option.active { background: hsl(35 45% 90%); }
+.tsel-option.selected { color: var(--brand-800, #2f6b4f); font-weight: 750; }
+.tsel-check { color: var(--brand-800, #2f6b4f); font-weight: 800; }
+.tsel-empty { padding: 12px 10px; color: var(--text-tertiary); font-size: 13px; }

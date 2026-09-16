@@ -3,6 +3,7 @@
 import { useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { getScheduleById, listSchedulePresets } from "@/src/config/school-schedules";
+import { ThemedSelect } from "@/components/themed-select";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -93,16 +94,21 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
     <div className="upload-flow">
       <div className="school-picker">
         <label htmlFor="import-school">我的学校</label>
-        <select id="import-school" value={scheduleId} onChange={(event) => setScheduleId(event.target.value)}>
-          {groups.map((group) => (
-            <optgroup label={group.label} key={group.key}>
-              {presets.filter((item) => item.kind === group.key).map((item) => (
-                <option value={item.id} key={item.id}>{item.school}{item.variant ? `（${item.variant}）` : ""}</option>
-              ))}
-            </optgroup>
-          ))}
-          <option value="custom">自定义作息（学校不在列表里时）</option>
-        </select>
+        <ThemedSelect
+          searchable
+          value={scheduleId}
+          ariaLabel="我的学校"
+          placeholder="输入学校名筛选，如：对外经贸"
+          emptyText="没有匹配的学校，可选自定义作息"
+          groups={[
+            ...groups.map((group) => ({
+              label: group.label,
+              options: presets.filter((item) => item.kind === group.key).map((item) => ({ value: item.id, label: item.school + (item.variant ? "（" + item.variant + "）" : "") })),
+            })),
+            { options: [{ value: "custom", label: "自定义作息（学校不在列表里时）" }] },
+          ]}
+          onChange={setScheduleId}
+        />
         <small>{preset.kind === "block" && !isCustom ? "该校按「大节」排课，模板与解析会自动换算成小节。" : "选好学校后，请使用对应的标准模板或教务系统导出的课表。"}</small>
         {isCustom && (
           <div style={{ marginTop: 8 }}>
