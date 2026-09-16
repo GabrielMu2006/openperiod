@@ -842,3 +842,14 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .info-period-table th, .info-period-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid hsl(35 25% 92%); }
 .info-period-table th { color: var(--text-tertiary); font-size: 11.5px; }
 .info-period-table td { font-variant-numeric: tabular-nums; }
+
+.period-school-fields, .period-pku-fields, .period-time-fields { display: flex; gap: 8px; align-items: flex-start; flex: 1; min-width: 0; }
+.period-school-fields > label, .period-pku-fields > label { flex: 1; min-width: 0; }
+.tsel-panel { min-width: 235px; }
+.period-hint { width: 100%; color: hsl(30 45% 34%); font-size: 12px; }
+
+/* 含三模式节次输入的时段行：改为弹性列宽 */
+.schedule-meeting-row:has(.period-school-fields),
+.schedule-meeting-row:has(.period-pku-fields),
+.schedule-meeting-row:has(.period-time-fields) { grid-template-columns: 105px 1fr 220px 34px; }
+.tsel-panel { min-width: 250px; right: auto; }

@@ -317,6 +317,7 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
     if (dirty && !window.confirm("修改还没有保存，确定要关闭吗？")) return;
     onClose();
   }, false);
+  const [courseMode, setCourseMode] = useState<PeriodMode>("school");
 
   // 与私人忙碌的时间冲突（星期相同、节次重叠、周次有交集）
   const conflicts = useMemo(() => {
@@ -370,11 +371,11 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
     {validation.name && <p className="field-error">{validation.name}</p>}
     <div className="editor-two"><label>教师<input value={instructor} maxLength={120} onChange={(event) => setInstructor(event.target.value)} /></label><label>地点<input value={location} maxLength={200} onChange={(event) => setLocation(event.target.value)} /></label></div>
     <ConflictBox conflicts={conflicts} kind="course" />
-    <div className="meeting-editor-title"><strong>上课时段</strong><button type="button" onClick={() => setMeetings((current) => [...current, { key: crypto.randomUUID(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
+    <div className="meeting-editor-title"><strong>上课时段</strong><span className="mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={courseMode === tab.key ? "on" : ""} onClick={() => setCourseMode(tab.key)}>{tab.label}</button>)}</span><button type="button" onClick={() => setMeetings((current) => [...current, { key: crypto.randomUUID(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
     {meetings.map((meeting) => <div className={`schedule-meeting-row${validation.meetings[meeting.key] ? " invalid" : ""}`} key={meeting.key}>
       <label>星期<select value={meeting.weekday} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: event.target.value as Weekday } : item))}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label>
-      <label>开始<ThemedSelect searchable value={String(meeting.startPeriod)} ariaLabel="开始节次" groups={[{ options: buildPeriodOptions(scheduleInfo ?? { rows: [] }) }]} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: Number(next), endPeriod: Math.max(Number(next), item.endPeriod) } : item))} /></label>
-      <label>结束<ThemedSelect searchable value={String(meeting.endPeriod)} ariaLabel="结束节次" groups={[{ options: buildEndOptions(scheduleInfo ?? { rows: [] }, Number(meeting.startPeriod) || 1) }]} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, endPeriod: Number(next) } : item))} /></label>
+      <PeriodFields mode={courseMode} scheduleInfo={scheduleInfo} startPeriod={meeting.startPeriod} endPeriod={meeting.endPeriod} onChange={(start, end) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: start, endPeriod: Math.max(start, end) } : item))} />
+      
       <label className="meeting-weeks">周次<input value={meeting.weekText} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: event.target.value } : item))} placeholder="1-16 / 单周 / 双周" /></label>
       <button type="button" aria-label="删除此时段" disabled={meetings.length === 1} onClick={() => setMeetings((current) => current.filter((item) => item.key !== meeting.key))}>×</button>
       <WeekQuickPicker value={meeting.weekText} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: next } : item))} open={openWeekGrids.includes(meeting.key)} onToggleOpen={() => setOpenWeekGrids((current) => current.includes(meeting.key) ? current.filter((key) => key !== meeting.key) : [...current, meeting.key])} />
