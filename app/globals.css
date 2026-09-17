@@ -853,3 +853,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .schedule-meeting-row:has(.period-pku-fields),
 .schedule-meeting-row:has(.period-time-fields) { grid-template-columns: 105px 1fr 220px 34px; }
 .tsel-panel { min-width: 250px; right: auto; }
+
+.error-fallback { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; }
+.error-fallback h1 { font-size: 22px; margin: 8px 0 4px; }
+.error-fallback p { color: var(--text-secondary); font-size: 14px; max-width: 460px; line-height: 1.7; margin: 0 0 10px; }
+.error-fallback-actions { display: flex; gap: 12px; align-items: center; }
+.error-fallback-actions button[type="button"]:first-child { min-height: 40px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--pku-red); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
