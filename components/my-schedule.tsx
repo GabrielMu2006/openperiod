@@ -7,6 +7,7 @@ import { useDialogBehavior } from "@/components/dialog-behavior";
 import { WEEKDAYS, type Weekday } from "@/src/domain/schedule";
 import { buildEndOptions, buildPeriodOptions, getScheduleForSemester, schedulePeriodCount } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
+import { localId } from "@/src/config/local-id";
 import { PeriodFields, periodModeTabs, type PeriodMode } from "@/components/period-mode-fields";
 import { parseWeekRule } from "@/src/domain/week-rules";
 
@@ -291,7 +292,7 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
   const [name, setName] = useState(existing?.name ?? "");
   const [instructor, setInstructor] = useState(existing?.instructor ?? "");
   const [location, setLocation] = useState(existing?.location ?? "");
-  const [meetings, setMeetings] = useState(() => (existing?.meetings ?? []).map((meeting) => ({ ...meeting, key: meeting.id, weekText: weeksText(meeting.weeks) })).concat(existing ? [] : [{ key: crypto.randomUUID(), id: "", weekday: "monday" as Weekday, startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }]));
+  const [meetings, setMeetings] = useState(() => (existing?.meetings ?? []).map((meeting) => ({ ...meeting, key: meeting.id, weekText: weeksText(meeting.weeks) })).concat(existing ? [] : [{ key: localId(), id: "", weekday: "monday" as Weekday, startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }]));
   const [pending, setPending] = useState(false);
   const [openWeekGrids, setOpenWeekGrids] = useState<string[]>([]);
   const activeMeeting = existing?.meetings.find((meeting) => meeting.id === selection.meetingId);
@@ -371,7 +372,7 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
     {validation.name && <p className="field-error">{validation.name}</p>}
     <div className="editor-two"><label>教师<input value={instructor} maxLength={120} onChange={(event) => setInstructor(event.target.value)} /></label><label>地点<input value={location} maxLength={200} onChange={(event) => setLocation(event.target.value)} /></label></div>
     <ConflictBox conflicts={conflicts} kind="course" />
-    <div className="meeting-editor-title"><strong>上课时段</strong><span className="mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={courseMode === tab.key ? "on" : ""} onClick={() => setCourseMode(tab.key)}>{tab.label}</button>)}</span><button type="button" onClick={() => setMeetings((current) => [...current, { key: crypto.randomUUID(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
+    <div className="meeting-editor-title"><strong>上课时段</strong><span className="mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={courseMode === tab.key ? "on" : ""} onClick={() => setCourseMode(tab.key)}>{tab.label}</button>)}</span><button type="button" onClick={() => setMeetings((current) => [...current, { key: localId(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
     {meetings.map((meeting) => <div className={`schedule-meeting-row${validation.meetings[meeting.key] ? " invalid" : ""}`} key={meeting.key}>
       <label>星期<select value={meeting.weekday} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: event.target.value as Weekday } : item))}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label>
       <PeriodFields mode={courseMode} scheduleInfo={scheduleInfo} startPeriod={meeting.startPeriod} endPeriod={meeting.endPeriod} onChange={(start, end) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: start, endPeriod: Math.max(start, end) } : item))} />

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ImportCourseDraft, ImportPreviewPayload } from "@/src/domain/import";
 import { buildEndOptions, buildPeriodOptions, getScheduleById } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
+import { localId } from "@/src/config/local-id";
 import type { Weekday } from "@/src/domain/schedule";
 import { parseWeekRule } from "@/src/domain/week-rules";
 
@@ -67,14 +68,14 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
 
   function addCourse() {
     setCourses((current) => [...current, {
-      id: crypto.randomUUID(), name: "", meetings: [{ id: crypto.randomUUID(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: 16 }, (_, index) => index + 1), weekText: "1-16", source: "手动新增" }],
+      id: localId(), name: "", meetings: [{ id: localId(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: 16 }, (_, index) => index + 1), weekText: "1-16", source: "手动新增" }],
     }]);
   }
 
   function addMeeting(courseId: string) {
     setCourses((current) => current.map((course) => course.id === courseId ? {
       ...course,
-      meetings: [...course.meetings, { id: crypto.randomUUID(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: 16 }, (_, index) => index + 1), weekText: "1-16", source: "手动新增" }],
+      meetings: [...course.meetings, { id: localId(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: 16 }, (_, index) => index + 1), weekText: "1-16", source: "手动新增" }],
     } : course));
   }
 
