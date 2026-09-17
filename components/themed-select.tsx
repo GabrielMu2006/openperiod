@@ -15,6 +15,8 @@ interface ThemedSelectProps {
   disabled?: boolean;
   ariaLabel?: string;
   emptyText?: string;
+  /** 挂在根元素上，供外层控制宽度 */
+  className?: string;
 }
 
 // 符合站点主题的下拉/组合框，替代系统原生 select。
@@ -28,6 +30,7 @@ export function ThemedSelect({
   disabled = false,
   ariaLabel,
   emptyText = "没有匹配的选项",
+  className,
 }: ThemedSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -111,7 +114,7 @@ export function ThemedSelect({
   let renderIndex = -1;
 
   return (
-    <div className={`tsel${open ? " open" : ""}`} ref={rootRef}>
+    <div className={`tsel${className ? ` ${className}` : ""}${open ? " open" : ""}`} ref={rootRef}>
       <input
         ref={inputRef}
         className="tsel-input"

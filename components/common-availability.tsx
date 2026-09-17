@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
+import { ThemedSelect } from "@/components/themed-select";
 import { getScheduleById, getScheduleForSemester, periodRangeIn, periodRangeMinutesIn } from "@/src/config/school-schedules";
 import { buildFreeRuns, formatDuration, type FreeRun } from "@/src/domain/free-runs";
 import { WEEKDAYS, type AvailabilitySlot, type Weekday } from "@/src/domain/schedule";
@@ -376,14 +377,10 @@ export function CommonAvailability() {
       ) : activeGroup ? (
         <section className="workspace" aria-label="共同空闲课表">
           <div className="controls">
-            <label className="group-control"><span>群组</span><select value={activeGroup.id} onChange={(event) => changeGroup(event.target.value)}>{groups.map((group) => <option value={group.id} key={group.id}>{group.name} · {group.members.length} 人</option>)}</select></label>
+            <label className="group-control"><span>群组</span><ThemedSelect value={activeGroup.id} ariaLabel="选择群组" groups={[{ options: groups.map((group) => ({ value: group.id, label: `${group.name} · ${group.members.length} 人` })) }]} onChange={changeGroup} /></label>
             <div className="week-control" aria-label="教学周"><span>教学周</span><div>
               <button type="button" disabled={week === 1} onClick={() => setWeek((value) => Math.max(1, value - 1))} aria-label="上一周">‹</button>
-              <select className="week-select" value={week} onChange={(event) => setWeek(Number(event.target.value))} aria-label="选择教学周">
-                {Array.from({ length: activeGroup.semester.weekCount }, (_, index) => index + 1).map((value) => (
-                  <option value={value} key={value}>第 {value} 周{value === activeGroup.semester.currentWeek ? "（本周）" : ""}</option>
-                ))}
-              </select>
+              <ThemedSelect className="week-select" value={String(week)} ariaLabel="选择教学周" groups={[{ options: Array.from({ length: activeGroup.semester.weekCount }, (_, index) => index + 1).map((value) => ({ value: String(value), label: `第 ${value} 周${value === activeGroup.semester.currentWeek ? "（本周）" : ""}` })) }]} onChange={(next) => setWeek(Number(next))} />
               <button type="button" disabled={week === activeGroup.semester.weekCount} onClick={() => setWeek((value) => Math.min(activeGroup.semester.weekCount, value + 1))} aria-label="下一周">›</button>
               {week !== activeGroup.semester.currentWeek && <button type="button" className="back-to-now" onClick={() => setWeek(activeGroup.semester.currentWeek)}>回到本周</button>}
             </div></div>
@@ -452,14 +449,8 @@ export function CommonAvailability() {
                       return <button type="button" key={day} className={on ? "on" : ""} aria-pressed={on} onClick={() => toggleRunWeekday(day)}>周{weekdayLabels[day]}</button>;
                     })}
                   </div>
-                  <select value={runFilters.minMinutes} aria-label="最短时长" onChange={(event) => setRunFilters((current) => ({ ...current, minMinutes: Number(event.target.value) }))}>
-                    {MIN_MINUTES_OPTIONS.map((minutes) => <option value={minutes} key={minutes}>{minutes === 0 ? "任意时长" : `≥ ${minutes} 分钟`}</option>)}
-                  </select>
-                  <select value={runFilters.daypart} aria-label="白天或晚间" onChange={(event) => setRunFilters((current) => ({ ...current, daypart: event.target.value as "all" | "day" | "evening" }))}>
-                    <option value="all">全天</option>
-                    <option value="day">白天（18 点前开始）</option>
-                    <option value="evening">晚间（18 点后开始）</option>
-                  </select>
+                  <ThemedSelect className="run-min" value={String(runFilters.minMinutes)} ariaLabel="最短时长" groups={[{ options: MIN_MINUTES_OPTIONS.map((minutes) => ({ value: String(minutes), label: minutes === 0 ? "任意时长" : `≥ ${minutes} 分钟` })) }]} onChange={(next) => setRunFilters((current) => ({ ...current, minMinutes: Number(next) }))} />
+                  <ThemedSelect className="run-daypart" value={runFilters.daypart} ariaLabel="白天或晚间" groups={[{ options: [{ value: "all", label: "全天" }, { value: "day", label: "白天（18 点前开始）" }, { value: "evening", label: "晚间（18 点后开始）" }] }]} onChange={(next) => setRunFilters((current) => ({ ...current, daypart: next as "all" | "day" | "evening" }))} />
                 </div>
               </div>
               {visibleRuns.length === 0 ? (

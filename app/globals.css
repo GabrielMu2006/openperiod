@@ -89,6 +89,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .controls label > span, .week-control > span { display: block; margin-bottom: 8px; color: var(--text-tertiary); font-size: 12px; font-weight: 650; }
 .group-control button, .group-control select { min-width: 230px; min-height: 48px; padding: 0 14px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text-primary); background: var(--surface); cursor: pointer; font-weight: 650; }
 .group-control button:hover, .group-control select:hover { border-color: #bdb2ab; }
+.group-control .tsel { min-width: 230px; }
+.group-control .tsel-input { min-height: 48px; border-color: var(--border-strong); background: var(--surface); font-weight: 650; }
+.group-control .tsel-input:hover, .group-control .tsel.open .tsel-input { border-color: #bdb2ab; }
 .group-control button small { color: var(--text-tertiary); font-weight: 450; }
 .group-control button b { margin-left: auto; color: var(--text-tertiary); font-weight: 500; }
 .week-control { margin-left: auto; }
@@ -98,6 +101,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .week-control button:hover:not(:disabled) { background: var(--surface-hover); color: var(--brand-800); }
 .week-control button:disabled { opacity: .3; cursor: default; }
 .week-control .week-select { min-height: 44px; max-width: 168px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text-primary); background: var(--surface); font-weight: 700; cursor: pointer; }
+.week-control .tsel.week-select { width: 168px; padding: 0; border: 0; background: transparent; }
+.week-control .tsel.week-select .tsel-input { min-height: 44px; text-align: center; border-color: var(--border-strong); background: var(--surface); font-weight: 700; }
 .back-to-now { min-width: 0 !important; height: 44px !important; padding: 0 12px; margin-left: 4px; border: 1px solid var(--border-strong) !important; border-radius: 10px !important; color: var(--brand-800) !important; background: var(--brand-050) !important; font-size: 13px !important; font-weight: 650; }
 .back-to-now:hover { border-color: #bdb2ab !important; background: #f6e9e8 !important; }
 
@@ -148,6 +153,12 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .run-day-chips button { min-width: 34px; min-height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 99px; color: var(--text-tertiary); background: var(--surface); font-size: 12px; cursor: pointer; }
 .run-day-chips button.on { color: var(--brand-800); border-color: #dcb5b6; background: var(--brand-050); font-weight: 650; }
 .free-runs-filters select { min-height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--surface); font-size: 12px; cursor: pointer; }
+.free-runs-filters .tsel { width: auto; }
+.free-runs-filters .tsel .tsel-input { min-height: 30px; min-width: 0; padding: 0 26px 0 10px; border-radius: 8px; font-size: 12px; }
+.free-runs-filters .tsel .tsel-chevron { right: 9px; font-size: 10px; }
+.free-runs-filters .tsel .tsel-panel { left: auto; right: 0; min-width: 190px; }
+.free-runs-filters .run-min { width: 106px; }
+.free-runs-filters .run-daypart { width: 178px; }
 .free-run-list { margin: 12px 0 0; padding: 0; list-style: none; }
 .free-run-list li { min-height: 44px; display: flex; align-items: center; gap: 14px; padding: 6px 2px; border-top: 1px solid var(--border); font-size: 13px; }
 .free-run-list strong { font-variant-numeric: tabular-nums; }
@@ -279,6 +290,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .course-fields label, .meeting-fields label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 11px; font-weight: 650; }
 .course-fields input, .meeting-fields input, .meeting-fields select { min-width: 0; height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--surface); font-size: 13px; }
 .course-fields input:focus, .meeting-fields input:focus, .meeting-fields select:focus { outline: 2px solid rgb(148 7 10 / 16%); border-color: var(--pku-red); }
+.meeting-fields .tsel .tsel-input { min-width: 0; height: 40px; padding: 0 26px 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px; }
+.meeting-fields .tsel .tsel-input:focus { outline: 2px solid rgb(148 7 10 / 16%); border-color: var(--pku-red); }
+.meeting-fields .tsel .tsel-chevron { right: 9px; font-size: 10px; }
 .course-fields > button { width: 42px; height: 40px; border: 0; border-radius: 8px; color: var(--danger); background: transparent; font-size: 12px; cursor: pointer; }
 .course-fields > button:hover { background: #feeceb; }
 .meeting-fields { display: grid; grid-template-columns: 105px 72px 72px minmax(140px, 1fr); gap: 9px; align-items: end; margin-top: 13px; padding: 13px; border-radius: 10px; background: var(--surface-warm); }
@@ -334,13 +348,17 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .controls label > span, .week-control > span { margin-bottom: 6px; }
   .group-control button { width: 100%; min-width: 0; min-height: 44px; }
   .group-control select { width: 100%; min-width: 0; min-height: 44px; }
+  .group-control .tsel { width: 100%; min-width: 0; }
+  .group-control .tsel-input { min-height: 44px; }
   .week-control { width: 100%; margin: 0; }
   .week-control > span { text-align: left; }
   .week-control > div { justify-content: space-between; }
   .week-control .week-select { flex: 1; min-width: 0; max-width: none; }
+  .week-control .tsel.week-select { width: auto; }
   .back-to-now { height: 44px !important; }
   .free-runs { margin-top: 15px; padding: 14px 15px; border-radius: 0; border-inline: 0; }
   .free-runs-filters { margin-left: 0; }
+  .free-runs-filters .run-min, .free-runs-filters .run-daypart { flex: 1; width: auto; }
   .free-run-list li { flex-wrap: wrap; gap: 5px 12px; }
   .free-run-list em { margin-left: 0; }
   .member-bar { display: block; padding: 14px 16px; }
@@ -519,6 +537,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .editor-body label { display: grid; gap: 7px; color: var(--text-secondary); font-size: 11px; font-weight: 650; }
 .editor-body input, .editor-body select { width: 100%; min-width: 0; height: 42px; padding: 0 11px; border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text-primary); background: var(--surface); }
 .editor-body input:focus, .editor-body select:focus { outline: 2px solid rgb(148 7 10 / 17%); border-color: var(--pku-red); }
+.editor-body .tsel .tsel-input { min-width: 0; height: 42px; padding: 0 30px 0 11px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); }
+.editor-body .tsel .tsel-input:focus { outline: 2px solid rgb(148 7 10 / 17%); border-color: var(--pku-red); }
 .editor-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .editor-three { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; }
 .meeting-editor-title { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
@@ -630,7 +650,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 /* Batch 4: editor fields, conflicts, week picker, import rework */
 .field-error { margin: -8px 0 0; color: var(--danger); font-size: 12px; }
 .schedule-meeting-row { align-items: start; }
-.schedule-meeting-row.invalid input, .schedule-meeting-row.invalid select { border-color: var(--danger); }
+.schedule-meeting-row.invalid input, .schedule-meeting-row.invalid select, .schedule-meeting-row.invalid .tsel-input { border-color: var(--danger); }
 .schedule-meeting-row .week-quick, .schedule-meeting-row .field-error { grid-column: 1 / -1; }
 .schedule-meeting-row .field-error { margin: 0; }
 .conflict-box { padding: 12px 14px; border: 1px solid #efc4c0; border-radius: 10px; background: #feeceb; }
@@ -726,6 +746,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .controls { padding: 12px 16px; gap: 12px; }
   .group-control span, .week-control > span, .mode-control > span { margin-bottom: 5px; }
   .group-control select { min-height: 44px; }
+  .group-control .tsel-input { min-height: 44px; }
   .mode-control { width: 100%; }
   .mode-control > span { text-align: left; }
   .mode-toggle { width: 100%; }
@@ -739,12 +760,14 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .week-grid button { min-height: 36px; }
   .run-day-chips button { min-height: 40px; }
   .free-runs-filters select { min-height: 40px; }
+  .free-runs-filters .tsel .tsel-input { min-height: 40px; }
   .warning-actions button { min-height: 40px; }
   .run-copy { min-height: 40px; }
   .add-meeting { min-height: 44px; }
   .members-toggle { min-height: 44px; }
   .back-to-now { min-height: 44px !important; }
   .week-control .week-select { min-height: 44px; }
+  .week-control .tsel.week-select .tsel-input { min-height: 44px; }
   .week-control button { min-width: 44px; height: 44px; }
 }
 

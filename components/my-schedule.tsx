@@ -16,6 +16,8 @@ const dayLabels: Record<Weekday, string> = {
   friday: "五", saturday: "六", sunday: "日",
 };
 
+const weekdayOptions = WEEKDAYS.map((day) => ({ value: day, label: `周${dayLabels[day]}` }));
+
 interface MeetingDTO {
   id: string;
   weekday: Weekday;
@@ -374,7 +376,7 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
     <ConflictBox conflicts={conflicts} kind="course" />
     <div className="meeting-editor-title"><strong>上课时段</strong><span className="mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={courseMode === tab.key ? "on" : ""} onClick={() => setCourseMode(tab.key)}>{tab.label}</button>)}</span><button type="button" onClick={() => setMeetings((current) => [...current, { key: localId(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
     {meetings.map((meeting) => <div className={`schedule-meeting-row${validation.meetings[meeting.key] ? " invalid" : ""}`} key={meeting.key}>
-      <label>星期<select value={meeting.weekday} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: event.target.value as Weekday } : item))}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label>
+      <label>星期<ThemedSelect value={meeting.weekday} ariaLabel="星期" groups={[{ options: weekdayOptions }]} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: next as Weekday } : item))} /></label>
       <PeriodFields mode={courseMode} scheduleInfo={scheduleInfo} startPeriod={meeting.startPeriod} endPeriod={meeting.endPeriod} onChange={(start, end) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: start, endPeriod: Math.max(start, end) } : item))} />
       
       <label className="meeting-weeks">周次<input value={meeting.weekText} onChange={(event) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: event.target.value } : item))} placeholder="1-16 / 单周 / 双周" /></label>
@@ -439,7 +441,7 @@ function BusyEditor({ scheduleInfo, selection, week, courses, onClose, onSaved, 
 
   return <div className="editor-backdrop" onMouseDown={onClose}><section ref={dialogRef} tabIndex={-1} className="schedule-editor busy-editor" role="dialog" aria-modal="true" aria-labelledby="busy-editor-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">PRIVATE BUSY</p><h2 id="busy-editor-title">{block ? "编辑忙碌" : "标记忙碌"}</h2></div><button type="button" aria-label="关闭" onClick={onClose}>×</button></header><div className="editor-body">
     <label>标题（可选，仅自己可见）<input value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="例如：组会" autoFocus /></label>
-    <div className="mode-tabs busy-mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={busyMode === tab.key ? "on" : ""} onClick={() => setBusyMode(tab.key)}>{tab.label}</button>)}</div><div className="editor-three"><label>星期<select value={weekday} onChange={(event) => setWeekday(event.target.value as Weekday)}>{WEEKDAYS.map((day) => <option value={day} key={day}>周{dayLabels[day]}</option>)}</select></label><PeriodFields mode={busyMode} scheduleInfo={scheduleInfo} startPeriod={startPeriod} endPeriod={endPeriod} onChange={(start, end) => { setStartPeriod(start); setEndPeriod(Math.max(start, end)); }} /></div>
+    <div className="mode-tabs busy-mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={busyMode === tab.key ? "on" : ""} onClick={() => setBusyMode(tab.key)}>{tab.label}</button>)}</div><div className="editor-three"><label>星期<ThemedSelect value={weekday} ariaLabel="星期" groups={[{ options: weekdayOptions }]} onChange={(next) => setWeekday(next as Weekday)} /></label><PeriodFields mode={busyMode} scheduleInfo={scheduleInfo} startPeriod={startPeriod} endPeriod={endPeriod} onChange={(start, end) => { setStartPeriod(start); setEndPeriod(Math.max(start, end)); }} /></div>
     <ConflictBox conflicts={conflicts} kind="busy" />
     <fieldset><legend>重复</legend>{[["THIS_WEEK", "仅本周"], ["EVERY", "每周"], ["ODD", "单周"], ["EVEN", "双周"], ["CUSTOM", "自定义"]].map(([value, label]) => <label className="radio-option" key={value}><input type="radio" name="repeat" value={value} checked={repeat === value} onChange={() => setRepeat(value)} />{label}</label>)}</fieldset>
     {repeat === "CUSTOM" && <>
