@@ -1,15 +1,16 @@
 :root {
-  --pku-red: #94070a;
-  --brand-900: #650305;
-  --brand-800: #7a0507;
-  --brand-100: #f6dede;
-  --brand-050: #fcf2f2;
-  --canvas: #f7f5f2;
+  /* 方向 B「温润」：陶红主色 + 奶油底 + 文楷字，Logo 与纹理同套 */
+  --pku-red: #a03a24;
+  --brand-900: #6f2414;
+  --brand-800: #872c18;
+  --brand-100: #f7e3d3;
+  --brand-050: #fcf3e9;
+  --canvas: #faf6ed;
   --surface: #ffffff;
-  --surface-warm: #fbf9f6;
-  --surface-hover: #f5f1ee;
-  --border: #e6e0db;
-  --border-strong: #d4ccc6;
+  --surface-warm: #fdfaf2;
+  --surface-hover: #f6f0e3;
+  --border: #e8dfcf;
+  --border-strong: #d6c9b4;
   --text-primary: #201b1b;
   --text-secondary: #6e6565;
   --text-tertiary: #6f6868;
@@ -29,8 +30,10 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   color: var(--text-primary);
-  background: var(--canvas);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: var(--canvas);
+  background-image: radial-gradient(rgb(122 5 7 / 5%) 1.1px, transparent 1.1px);
+  background-size: 16px 16px;
+  font-family: "LXGW WenKai", "Kaiti SC", "STKaiti", "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 button, input, select { font: inherit; }
@@ -48,9 +51,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .brand > span:last-child { display: flex; flex-direction: column; line-height: 1.05; }
 .brand strong { font-size: 17px; letter-spacing: .06em; }
 .brand small { color: var(--text-tertiary); font-size: 10px; letter-spacing: .1em; margin-top: 4px; }
-.logo-mark { position: relative; display: inline-flex; gap: 4px; width: 32px; height: 32px; padding: 6px; flex: 0 0 auto; border-radius: 9px; background: var(--pku-red); overflow: hidden; }
-.logo-mark i { display: block; width: 8px; height: 20px; background: white; border-radius: 2px; }
-.logo-mark i:last-child { opacity: .72; transform: translateY(4px); }
+.logo-mark { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 34px; height: 34px; padding: 0; flex: 0 0 auto; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #b8502e, #8f2c18 70%); overflow: visible; }
+.logo-mark i { display: block; width: 7px; height: 17px; background: white; border-radius: 4px; order: 1; }
+.logo-mark i:last-child { opacity: 1; transform: none; order: 3; }
+.logo-mark::before { content: ""; order: 2; width: 6px; height: 6px; border-radius: 50%; background: #ffd66b; box-shadow: 0 0 8px 2px rgb(255 196 80 / .75); }
 .group-quick { min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; color: var(--text-primary); cursor: pointer; }
 .group-quick span { color: var(--text-tertiary); margin-left: 12px; }
 .avatar { width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center; color: white; background: var(--brand-800); font-weight: 700; text-decoration: none; cursor: pointer; }
@@ -80,7 +84,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 
 .main-content { width: 100%; max-width: 1440px; margin: 0 auto; padding: 38px 32px 64px; }
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
-.eyebrow { margin: 0 0 5px; color: var(--pku-red); font-size: 11px; font-weight: 750; letter-spacing: .16em; }
+.eyebrow { margin: 0 0 5px; color: #b0541d; font-size: 11px; font-weight: 750; letter-spacing: .16em; }
 .page-heading h1 { margin: 0; font-size: clamp(26px, 3vw, 32px); line-height: 1.2; letter-spacing: -.03em; }
 .page-heading > p { margin: 0 0 2px; color: var(--text-secondary); font-size: 14px; }
 .workspace { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; }
@@ -175,6 +179,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .empty-actions { display: flex; gap: 10px; margin-top: 20px; }
 .empty-actions a, .groups-heading > div:last-child a, .form-actions a { min-height: 42px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 10px; color: var(--text-secondary); background: var(--surface); font-size: 14px; font-weight: 650; text-decoration: none; }
 .primary-action, .empty-actions .primary-action, .groups-heading > div:last-child .primary-action { color: white; border-color: var(--pku-red); background: var(--pku-red); }
+/* 方向 B：主行动按钮胶囊化，带一点暖投影 */
+.editor-save, .batch-apply, .ai-import-submit, .primary-action, .mode-toggle button.on { border-radius: 999px; box-shadow: 0 4px 10px rgb(143 44 24 / .18); }
 .page-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; padding: 13px 15px; border: 1px solid #efc4c0; border-radius: 10px; color: var(--danger); background: #feeceb; font-size: 14px; }
 .page-success { margin-bottom: 16px; padding: 13px 15px; border: 1px solid var(--free-border); border-radius: 10px; color: var(--free); background: var(--free-bg); font-size: 14px; font-weight: 600; }
 .page-error small { color: #8d514c; }
@@ -333,8 +339,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
   .brand { width: auto; }
   .brand > span:last-child { display: flex; }
   .brand small { display: none; }
-  .logo-mark { width: 30px; height: 30px; padding: 6px; }
-  .logo-mark i { width: 7px; height: 18px; }
+  .logo-mark { width: 30px; height: 30px; }
+  .logo-mark i { width: 6px; height: 15px; }
+  .logo-mark::before { width: 5px; height: 5px; }
   .group-quick { display: none; }
   .avatar { width: 34px; height: 34px; }
   .sidebar { display: none; }

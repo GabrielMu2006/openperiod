@@ -11,6 +11,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
+      <head>
+        <link rel="stylesheet" href="/fonts/lxgw/lxgw.css" />
+      </head>
       <body>{children}</body>
     </html>
   );
