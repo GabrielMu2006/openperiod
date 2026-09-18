@@ -121,10 +121,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .timetable-wrap { padding: 19px 24px 25px; }
 .legend { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; color: var(--text-secondary); font-size: 12px; }
 .legend > span { display: inline-flex; align-items: center; gap: 7px; }
-.legend i { width: 10px; height: 10px; border-radius: 3px; }
-.legend i.grad-all { background: hsla(158, 70%, 52%, 0.55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
-.legend i.grad-some { background: hsla(87, 70%, 52%, 0.5); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
-.legend i.grad-none { background: hsla(16, 82%, 52%, 0.55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
+.legend .ramp { gap: 8px; }
+.ramp-bar { width: 130px; height: 12px; border-radius: 99px; background: linear-gradient(90deg, hsl(16, 68%, 56%) 0%, hsl(87, 72%, 51%) 50%, hsl(158, 76%, 46%) 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5); }
+.ramp em { font-style: normal; color: var(--text-tertiary); font-size: 11px; }
 .legend small { margin-left: auto; color: var(--text-tertiary); }
 .grid-scroller { border: 1px solid var(--border); border-radius: 12px; overflow: auto; background: var(--border); }
 .timetable-grid { min-width: 760px; display: grid; grid-template-columns: 66px repeat(7, minmax(82px, 1fr)); gap: 2px; background: linear-gradient(160deg, #e8f7f1 0%, #f8f3e4 48%, #fdf0ea 100%); }
