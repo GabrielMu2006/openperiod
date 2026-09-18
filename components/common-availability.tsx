@@ -70,17 +70,18 @@ function longDateLabel(startDate: string, week: number, weekdayIndex: number) {
   return date ? `${date.getUTCMonth() + 1}月${date.getUTCDate()}日` : "";
 }
 
-// 毛玻璃材质 · 方案 G4「透·薄荷+珊瑚」：低透明度，绿色走薄荷调、「没人有空」用珊瑚橘
+// 毛玻璃材质 · 按有空人数占比连续渐变：0 人=珊瑚红 → 半数=黄绿 → 全员=饱满薄荷绿
+// 有空的人越多，颜色越绿、越深、越实，一眼读出「这一格有多好约」
 function slotHeatStyle(pct: number) {
   const p = Math.min(1, Math.max(0, pct));
   const hue = Math.round(16 + (158 - 16) * p);
-  const edge = Math.abs(p - 0.5) * 2; // 0 中段 → 1 两端
-  const sat = Math.round(70 + 12 * edge);
-  const alpha = 0.42 + 0.13 * edge;
-  const glass = (a: number) => `hsla(${hue}, ${sat}%, 52%, ${a.toFixed(2)})`;
+  const sat = Math.round(68 + 8 * p);
+  const light = Math.round(56 - 10 * p);
+  const alpha = 0.4 + 0.45 * p;
+  const glass = (a: number) => `hsla(${hue}, ${sat}%, ${light}%, ${a.toFixed(2)})`;
   return {
-    backgroundImage: `linear-gradient(180deg, ${glass(alpha + 0.06)} 0%, ${glass(alpha)} 100%)`,
-    color: edge > 0.55 ? "rgba(255, 255, 255, 0.96)" : "var(--text-primary)",
+    backgroundImage: `linear-gradient(180deg, ${glass(alpha + 0.08)} 0%, ${glass(alpha)} 100%)`,
+    color: p >= 0.75 ? "rgba(255, 255, 255, 0.96)" : "var(--text-primary)",
     backdropFilter: "blur(14px) saturate(1.6)",
     WebkitBackdropFilter: "blur(14px) saturate(1.6)",
     boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45)",
@@ -394,7 +395,7 @@ export function CommonAvailability() {
 
           {selectedIds.length === 0 ? <div className="empty-state"><Logo /><h2>请选择至少一位成员</h2><p>选择成员后，这里会立即显示共同空闲。</p></div> : (
             <div className="timetable-wrap">
-              <div className="legend"><span><i className="grad grad-all" />全部有空</span><span><i className="grad grad-some" />部分有空</span><span><i className="grad grad-none" />没人有空</span><small>颜色越绿代表有空的人越多 · 点击格子查看成员状态</small></div>
+              <div className="legend"><span className="ramp" aria-hidden="true"><i className="ramp-bar" /><em>没人有空</em><em>→</em><em>全部有空</em></span><small>颜色越绿代表有空的人越多 · 点击格子查看成员状态</small></div>
               {viewMode === "week" ? (
                 <div className="grid-scroller" onScroll={(event) => { if (swipeHintVisible && event.currentTarget.scrollLeft > 12) setSwipeHintVisible(false); }}>
                   <div className="timetable-grid" ref={gridRef} onKeyDown={onGridKeyDown}>
