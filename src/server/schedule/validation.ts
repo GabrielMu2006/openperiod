@@ -26,6 +26,12 @@ export const skipMutationSchema = z.object({
   skipped: z.boolean(),
 });
 
+// 批量「不去」：一次提交整学期的目标周次集合（替换式生效）
+export const batchSkipSchema = z.object({
+  weeks: z.array(z.number().int().min(1).max(16)).max(16)
+    .transform((weeks) => [...new Set(weeks)].sort((a, b) => a - b)),
+});
+
 export const busyMutationSchema = z.object({
   kind: z.enum(["ONE_TIME", "RECURRING"]),
   title: z.string().trim().max(200).optional(),

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { z } from "zod";
 import type { Weekday } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
@@ -44,13 +44,20 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
     : [];
   const [exceptionRows, busyRows] = await Promise.all([
     meetingRows.length
-      ? db.select({ courseMeetingId: courseExceptions.courseMeetingId }).from(courseExceptions)
-          .where(and(eq(courseExceptions.userId, userId), eq(courseExceptions.week, week), inArray(courseExceptions.courseMeetingId, meetingRows.map((meeting) => meeting.id))))
-      : Promise.resolve([]),
+      ? db.select({ courseMeetingId: courseExceptions.courseMeetingId, week: courseExceptions.week }).from(courseExceptions)
+          .where(and(eq(courseExceptions.userId, userId), inArray(courseExceptions.courseMeetingId, meetingRows.map((meeting) => meeting.id))))
+      : Promise.resolve([] as { courseMeetingId: string; week: number }[]),
     db.select().from(busyBlocks)
       .where(and(eq(busyBlocks.userId, userId), eq(busyBlocks.semesterId, semester.id))),
   ]);
-  const skipped = new Set(exceptionRows.map((exception) => exception.courseMeetingId));
+  const skipped = new Set(exceptionRows.filter((exception) => exception.week === week).map((exception) => exception.courseMeetingId));
+  // 每个时段被标记「不去」的全部周次，供批量管理使用
+  const skipsByMeeting = new Map<string, number[]>();
+  for (const exception of exceptionRows) {
+    const list = skipsByMeeting.get(exception.courseMeetingId);
+    if (list) list.push(exception.week);
+    else skipsByMeeting.set(exception.courseMeetingId, [exception.week]);
+  }
 
   return {
     semester: {
@@ -76,6 +83,7 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
         endPeriod: meeting.endPeriod,
         weeks: meeting.weeks,
         skippedThisWeek: skipped.has(meeting.id),
+        skippedWeeks: (skipsByMeeting.get(meeting.id) ?? []).sort((a, b) => a - b),
       })),
     })),
     busyBlocks: busyRows.map((block) => ({
@@ -157,6 +165,29 @@ export async function setMeetingSkipped(userId: string, meetingId: string, week:
       eq(courseExceptions.courseMeetingId, meeting.id), eq(courseExceptions.userId, userId), eq(courseExceptions.week, week),
     ));
   }
+}
+
+// 批量替换某时段的「不去」周次：目标集合之外的旧标记清除，缺的补上（一次事务生效）
+export async function replaceMeetingSkips(userId: string, meetingId: string, weeks: number[]) {
+  const db = getDatabase();
+  const [meeting] = await db.select({ id: courseMeetings.id, weeks: courseMeetings.weeks })
+    .from(courseMeetings).innerJoin(courses, eq(courseMeetings.courseId, courses.id))
+    .where(and(eq(courseMeetings.id, meetingId), eq(courses.userId, userId))).limit(1);
+  if (!meeting) throw new HttpError(404, "课程时段不存在");
+  if (weeks.some((week) => !meeting.weeks.includes(week))) throw new HttpError(400, "周次超出该时段的上课范围");
+  await db.transaction(async (tx) => {
+    await tx.delete(courseExceptions).where(and(
+      eq(courseExceptions.courseMeetingId, meeting.id),
+      eq(courseExceptions.userId, userId),
+      eq(courseExceptions.type, "SKIP"),
+      weeks.length ? notInArray(courseExceptions.week, weeks) : undefined,
+    ));
+    if (weeks.length) {
+      await tx.insert(courseExceptions)
+        .values(weeks.map((week) => ({ courseMeetingId: meeting.id, userId, week, type: "SKIP" as const })))
+        .onConflictDoNothing({ target: [courseExceptions.courseMeetingId, courseExceptions.userId, courseExceptions.week] });
+    }
+  });
 }
 
 export async function createBusyBlock(userId: string, input: BusyInput) {

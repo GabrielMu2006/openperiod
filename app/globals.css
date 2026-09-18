@@ -503,7 +503,12 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .my-period { grid-column: 1; flex-direction: column; border-top: 1px solid var(--border); }
 .my-period strong { font-size: 14px; }
 .my-period small { margin-top: 2px; color: var(--text-tertiary); font-size: 9px; }
-.my-grid-cell { border-top: 1px solid var(--border); border-left: 1px solid var(--border); background: var(--surface); }
+.my-grid-cell { display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-top: 1px solid var(--border); border-left: 1px solid var(--border); background: var(--surface); font: inherit; cursor: pointer; }
+.my-grid-cell:hover:not(:disabled), .my-grid-cell:focus-visible { background: #eef6f0; }
+.my-grid-cell:focus-visible { outline: 2px solid var(--brand-800, #2f6b4f); outline-offset: -2px; }
+.my-grid-cell:hover:not(:disabled)::after { content: "＋"; color: #9db8a6; font-size: 15px; font-weight: 650; }
+.my-grid-cell:disabled { cursor: default; }
+.my-grid-hint { margin: 10px 2px 8px; color: var(--text-tertiary); font-size: 12px; }
 .my-course-block, .my-busy-block { z-index: 3; min-width: 0; margin: 3px; padding: 7px 8px; overflow: hidden; border-radius: 7px; text-align: left; cursor: pointer; }
 .my-course-block { border: 1px solid #e2bfc0; border-left: 3px solid var(--pku-red); color: var(--text-primary); background: #fff4f3; }
 .my-course-block:hover { border-color: var(--pku-red); }
@@ -554,6 +559,16 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .radio-option:has(input:checked) { border-color: #a6bdc2; background: #edf4f5; }
 .radio-option input { width: auto; height: auto; accent-color: #607d86; }
 .busy-weeks-preview { margin: -4px 0 0; color: var(--text-secondary); font-size: 12px; }
+.batch-skip { padding-top: 2px; }
+.batch-skip-toggle { min-height: 34px; padding: 0 12px; border: 1px dashed var(--border-strong); border-radius: 9px; color: var(--text-secondary); background: transparent; font-size: 12.5px; cursor: pointer; }
+.batch-skip-toggle:hover { color: var(--brand-800); border-color: #bdb2ab; background: var(--surface-warm); }
+.batch-skip-note { margin: 11px 0 9px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.65; }
+.batch-presets { margin-bottom: 9px; }
+.batch-skip .week-grid button { min-height: 32px; }
+.batch-skip .busy-weeks-preview { margin: 10px 0 0; }
+.batch-apply { width: 100%; min-height: 42px; margin-top: 10px; border: 0; border-radius: 9px; color: #fff; background: var(--pku-red); font-size: 14px; font-weight: 650; cursor: pointer; }
+.batch-apply:hover:not(:disabled) { background: #7d0609; }
+.batch-apply:disabled { opacity: .55; cursor: default; }
 .busy-privacy-note { margin: 0; padding: 12px 14px; border-radius: 9px; color: #52686d; background: #edf4f5; font-size: 11px; }
 .schedule-editor > footer { min-height: 70px; display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-top: 1px solid var(--border); }
 .schedule-editor > footer span { flex: 1; }

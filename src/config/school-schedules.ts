@@ -610,6 +610,65 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 11, start: "19:50", end: "20:35" },
     ],
   },
+    // 中国人民大学：6 大节制（每大节 90 分钟，含特色的午间大节）。
+    // 来源：学生作息资料多源交叉验证（上午 8:00/10:00、下午 14:00/16:00、晚上 18:00 起）；
+    // 午间 12:00–13:30 有常规排课先例（校方新闻「走进三农」通识课每周二中午上课）。
+    {
+    id: "ruc",
+    school: "中国人民大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "09:30" },
+      { period: 2, start: "10:00", end: "11:30" },
+      { period: 3, start: "12:00", end: "13:30" },
+      { period: 4, start: "14:00", end: "15:30" },
+      { period: 5, start: "16:00", end: "17:30" },
+      { period: 6, start: "18:00", end: "19:30" },
+    ],
+  },
+    // 武汉大学：12 小节制（每节 45 分钟）。来源：研究生课表整理版与多份新生资料交叉验证
+    // （第一节 8:00、第五节 11:30–12:15、第六节 14:05 起为多源一致；晚间按 18:30 起连排）。
+    // 注意：武大实行夏/冬令作息，夏季学期下午节次可能整体提前，如有偏差请反馈或改用自定义作息。
+    {
+    id: "whu",
+    school: "武汉大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:50", end: "09:35" },
+      { period: 3, start: "09:50", end: "10:35" },
+      { period: 4, start: "10:40", end: "11:25" },
+      { period: 5, start: "11:30", end: "12:15" },
+      { period: 6, start: "14:05", end: "14:50" },
+      { period: 7, start: "14:55", end: "15:40" },
+      { period: 8, start: "15:45", end: "16:30" },
+      { period: 9, start: "16:40", end: "17:25" },
+      { period: 10, start: "18:30", end: "19:15" },
+      { period: 11, start: "19:20", end: "20:05" },
+      { period: 12, start: "20:10", end: "20:55" },
+    ],
+  },
+    // 吉林大学：12 小节制。来源：教务处官网「上课时间」页（jwc.jlu.edu.cn/sksj.htm，2026-09 抓取），
+    // 上午 4 节、下午 4 节、晚上 4 节（9-10 节连上，11-12 节连上）。
+    {
+    id: "jlu",
+    school: "吉林大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:00", end: "10:45" },
+      { period: 4, start: "10:55", end: "11:40" },
+      { period: 5, start: "13:30", end: "14:15" },
+      { period: 6, start: "14:25", end: "15:10" },
+      { period: 7, start: "15:30", end: "16:15" },
+      { period: 8, start: "16:25", end: "17:10" },
+      { period: 9, start: "18:20", end: "19:05" },
+      { period: 10, start: "19:05", end: "19:50" },
+      { period: 11, start: "20:00", end: "20:45" },
+      { period: 12, start: "20:45", end: "21:30" },
+    ],
+  },
 ];
 
 const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(

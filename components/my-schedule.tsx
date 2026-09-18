@@ -25,6 +25,7 @@ interface MeetingDTO {
   endPeriod: number;
   weeks: number[];
   skippedThisWeek: boolean;
+  skippedWeeks: number[];
 }
 
 interface CourseDTO {
@@ -53,7 +54,7 @@ interface ScheduleDTO {
 }
 
 type CourseSelection = { type: "course"; course?: CourseDTO; meetingId?: string };
-type BusySelection = { type: "busy"; block?: BusyDTO };
+type BusySelection = { type: "busy"; block?: BusyDTO; prefill?: { weekday: Weekday; startPeriod: number; endPeriod: number } };
 type Selection = CourseSelection | BusySelection | null;
 type Notice = { text: string; undo?: () => Promise<void> } | null;
 
@@ -180,6 +181,24 @@ export function MySchedule() {
     .map((meeting) => ({ course, meeting }))) ?? [], [schedule]);
   const visibleBusy = useMemo(() => schedule?.busyBlocks.filter((block) => block.weeks.includes(schedule.week)) ?? [], [schedule]);
 
+  // 当前周已被课程/忙碌占用的格子：这些格子不可再点出「标记忙碌」
+  const occupiedSlots = useMemo(() => {
+    const set = new Set<string>();
+    for (const { meeting } of visibleCourses)
+      for (let period = meeting.startPeriod; period <= meeting.endPeriod; period += 1) set.add(`${WEEKDAYS.indexOf(meeting.weekday)}:${period}`);
+    for (const block of visibleBusy)
+      for (let period = block.startPeriod; period <= block.endPeriod; period += 1) set.add(`${WEEKDAYS.indexOf(block.weekday)}:${period}`);
+    return set;
+  }, [visibleCourses, visibleBusy]);
+
+  // 手机上表格横向滑动后 250ms 内的点击视为滑动余波，忽略，避免误开弹窗
+  const lastScrollAtRef = useRef(0);
+
+  function markBusyFromCell(weekdayIndex: number, period: number) {
+    if (Date.now() - lastScrollAtRef.current < 250) return;
+    setSelection({ type: "busy", prefill: { weekday: WEEKDAYS[weekdayIndex], startPeriod: period, endPeriod: period + 1 } });
+  }
+
   async function refreshAndClose() {
     await load();
     setSelection(null);
@@ -192,6 +211,17 @@ export function MySchedule() {
       text: `${skipped ? "已标记" : "已恢复"} ${date}（周${dayLabels[meeting.weekday]} 第${meeting.startPeriod}–${meeting.endPeriod}节）`,
       undo: async () => {
         await mutation(`/api/course-meetings/${meeting.id}/skip`, "PUT", { week: skipWeek, skipped: !skipped });
+        setNotice(null);
+        await load();
+      },
+    });
+  }
+
+  function handleBatchSkip(meeting: MeetingDTO, weeks: number[], previousWeeks: number[]) {
+    setNotice({
+      text: weeks.length ? `已批量标记不去：${weeksDescription(weeks)}` : "已清除该时段的全部「不去」标记",
+      undo: async () => {
+        await mutation(`/api/course-meetings/${meeting.id}/skip`, "PUT", { weeks: previousWeeks });
         setNotice(null);
         await load();
       },
@@ -229,18 +259,25 @@ export function MySchedule() {
         {notice && <div className="page-success" role="status">{notice.text}{notice.undo && <button type="button" className="link-button" onClick={notice.undo}>撤销</button>}{snapshotId && <button type="button" className="link-button" disabled={restoring} onClick={restoreSnapshot}>{restoring ? "恢复中…" : "恢复导入前的课表"}</button>}</div>}
         {schedule && week !== null ? <>
           <div className="my-week-switcher"><button type="button" aria-label="上一周" disabled={week <= 1} onClick={() => setWeek((value) => Math.max(1, (value ?? 1) - 1))}>‹</button><strong>第 {week} 周 {week === schedule.semester.currentWeek && <em>本周</em>}</strong><button type="button" aria-label="下一周" disabled={week >= schedule.semester.weekCount} onClick={() => setWeek((value) => Math.min(schedule.semester.weekCount, (value ?? 1) + 1))}>›</button></div>
-          {schedule.courses.length === 0 && schedule.busyBlocks.length === 0 ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，或手动添加第一门课程。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button></div></section> : <div className="my-grid-scroller" onScroll={(event) => { if (swipeHintVisible && event.currentTarget.scrollLeft > 12) setSwipeHintVisible(false); }}><div className="my-timetable">
+          {schedule.courses.length === 0 && schedule.busyBlocks.length === 0 ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，或手动添加第一门课程。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button></div></section> : <>
+            <p className="my-grid-hint">点空格子可快速标记「忙碌」，点课程块可查看详情。</p>
+            <div className="my-grid-scroller" onScroll={(event) => { lastScrollAtRef.current = Date.now(); if (swipeHintVisible && event.currentTarget.scrollLeft > 12) setSwipeHintVisible(false); }}><div className="my-timetable">
             <div className="my-corner">节次</div>{WEEKDAYS.map((day, index) => <div className="my-day" style={{ gridColumn: index + 2 }} key={day}>周{dayLabels[day]}</div>)}
             {Array.from({ length: schedulePeriodCount(mySchedule) }, (_, index) => index + 1).map((period) => <div className="my-period" style={{ gridRow: period + 1 }} key={period}><strong>{period}</strong><small>{mySchedule.rows[period - 1]?.label ?? `第 ${period} 节`}</small></div>)}
-            {Array.from({ length: schedulePeriodCount(mySchedule) * 7 }, (_, index) => <div className="my-grid-cell" style={{ gridColumn: index % 7 + 2, gridRow: Math.floor(index / 7) + 2 }} key={index} />)}
+            {Array.from({ length: schedulePeriodCount(mySchedule) * 7 }, (_, index) => {
+              const weekdayIndex = index % 7;
+              const period = Math.floor(index / 7) + 1;
+              const occupied = occupiedSlots.has(`${weekdayIndex}:${period}`);
+              return <button type="button" className="my-grid-cell" style={{ gridColumn: weekdayIndex + 2, gridRow: period + 1 }} key={index} disabled={occupied} aria-label={occupied ? undefined : `周${dayLabels[WEEKDAYS[weekdayIndex]]} 第${period}节，标记忙碌`} onClick={() => markBusyFromCell(weekdayIndex, period)} />;
+            })}
             {visibleCourses.map(({ course, meeting }) => <button type="button" className={`my-course-block ${meeting.skippedThisWeek ? "skipped" : ""}`} style={{ gridColumn: WEEKDAYS.indexOf(meeting.weekday) + 2, gridRow: `${meeting.startPeriod + 1} / ${meeting.endPeriod + 2}` }} onClick={() => setSelection({ type: "course", course, meetingId: meeting.id })} key={meeting.id}><strong>{course.name}</strong><span>{course.location || `${meeting.startPeriod}–${meeting.endPeriod} 节`}</span>{meeting.skippedThisWeek && <em>本周不去</em>}</button>)}
             {visibleBusy.map((block) => <button type="button" className="my-busy-block" style={{ gridColumn: WEEKDAYS.indexOf(block.weekday) + 2, gridRow: `${block.startPeriod + 1} / ${block.endPeriod + 2}` }} onClick={() => setSelection({ type: "busy", block })} key={block.id}><strong>{block.title || "忙碌"}</strong><span>{block.kind === "ONE_TIME" ? `仅第 ${block.weeks.join(",")} 周` : "周期"}</span></button>)}
-          </div><span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true">← 表格可左右滑动 →</span></div>}
+          </div><span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true">← 表格可左右滑动 →</span></div></>}
           {infoOpen && mySchedule && <div className="detail-backdrop" role="presentation" onMouseDown={() => setInfoOpen(false)}><section ref={infoRef} tabIndex={-1} className="schedule-editor info-editor" role="dialog" aria-modal="true" aria-labelledby="schedule-info-title" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="eyebrow">SCHEDULE INFO</p><h2 id="schedule-info-title">{mySchedule.school}作息（{mySchedule.rows.length} 节）</h2></div><button type="button" aria-label="关闭" onClick={() => setInfoOpen(false)}>×</button></header><div className="editor-body"><table className="info-period-table"><thead><tr><th>节次</th><th>时间</th></tr></thead><tbody>{mySchedule.rows.map((row, index) => <tr key={index}><td>{row.label ?? "第 " + (index + 1) + " 节"}</td><td>{row.start} – {row.end}</td></tr>)}</tbody></table><p className="admin-note">手动添加课程/忙碌时，这里的节次号与上表一一对应。如果时间与你们学校的实际作息不符，请告诉我们。</p><div className="feedback-meta"><button type="button" onClick={() => { window.dispatchEvent(new CustomEvent("op:open-feedback")); setInfoOpen(false); }}>有问题，去反馈</button><button type="button" className="link-button" onClick={() => setInfoOpen(false)}>关闭</button></div></div></section></div>}
       <div className="my-schedule-legend"><span><i className="course" />课程</span><span><i className="busy" />私人忙碌</span><span><i className="skipped" />本周不去</span><small>私人忙碌标题与 Skip 状态不会对其他成员公开。</small></div>
         </> : !error && <div className="preview-loading">正在读取个人课表…</div>}
       </div>
-      {selection?.type === "course" && schedule && <CourseEditor selection={selection} week={schedule.week} semesterStartDate={schedule.semester.startDate} scheduleInfo={schedule.semester.schedule} busyBlocks={schedule.busyBlocks} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} onSkipChange={handleSkipChange} />}
+      {selection?.type === "course" && schedule && <CourseEditor selection={selection} week={schedule.week} semesterStartDate={schedule.semester.startDate} scheduleInfo={schedule.semester.schedule} busyBlocks={schedule.busyBlocks} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} onSkipChange={handleSkipChange} onBatchSkip={handleBatchSkip} />}
       {selection?.type === "busy" && schedule && <BusyEditor selection={selection} week={schedule.week} scheduleInfo={schedule.semester.schedule} courses={schedule.courses} onClose={() => setSelection(null)} onSaved={refreshAndClose} onError={setError} />}
     </AppShell>
   );
@@ -253,6 +290,7 @@ interface CourseEditorProps extends EditorProps<CourseSelection> {
   scheduleInfo?: { rows: { period?: number; start: string; end: string; label?: string }[]; blocks?: { label: string; from: number; to: number }[] };
   busyBlocks: BusyDTO[];
   onSkipChange(meeting: MeetingDTO, week: number, skipped: boolean): void;
+  onBatchSkip(meeting: MeetingDTO, weeks: number[], previousWeeks: number[]): void;
 }
 
 interface BusyEditorProps extends EditorProps<BusySelection> {
@@ -289,15 +327,53 @@ function WeekQuickPicker({ value, onChange, open, onToggleOpen }: { value: strin
   );
 }
 
-function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBlocks, onClose, onSaved, onError, onSkipChange }: CourseEditorProps) {
+function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBlocks, onClose, onSaved, onError, onSkipChange, onBatchSkip }: CourseEditorProps) {
   const existing = selection.course;
   const [name, setName] = useState(existing?.name ?? "");
   const [instructor, setInstructor] = useState(existing?.instructor ?? "");
   const [location, setLocation] = useState(existing?.location ?? "");
-  const [meetings, setMeetings] = useState(() => (existing?.meetings ?? []).map((meeting) => ({ ...meeting, key: meeting.id, weekText: weeksText(meeting.weeks) })).concat(existing ? [] : [{ key: localId(), id: "", weekday: "monday" as Weekday, startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }]));
+  const [meetings, setMeetings] = useState(() => (existing?.meetings ?? []).map((meeting) => ({ ...meeting, key: meeting.id, weekText: weeksText(meeting.weeks) })).concat(existing ? [] : [{ key: localId(), id: "", weekday: "monday" as Weekday, startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false, skippedWeeks: [] }]));
   const [pending, setPending] = useState(false);
   const [openWeekGrids, setOpenWeekGrids] = useState<string[]>([]);
   const activeMeeting = existing?.meetings.find((meeting) => meeting.id === selection.meetingId);
+
+  // 批量「不去」：一次设置整个学期不用去的周次（水课适用）
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [skipText, setSkipText] = useState("");
+  const [skipGridOpen, setSkipGridOpen] = useState(true);
+  const [batchPending, setBatchPending] = useState(false);
+
+  function toggleBatch() {
+    setBatchOpen((open) => {
+      if (!open && activeMeeting) setSkipText(weeksText(activeMeeting.skippedWeeks ?? []));
+      return !open;
+    });
+  }
+
+  // 预设按钮只在「该时段实际有课的周」内生效，避免标到没课的周
+  function presetSkipWeeks(kind: "fromNow" | "odd" | "even") {
+    if (!activeMeeting) return;
+    const base = activeMeeting.weeks;
+    const next = kind === "fromNow" ? base.filter((value) => value >= week)
+      : kind === "odd" ? base.filter((value) => value % 2 === 1)
+      : base.filter((value) => value % 2 === 0);
+    setSkipText(next.length ? weeksText(next) : "");
+  }
+
+  const batchMeetingWeeks = activeMeeting?.weeks ?? [];
+  const parsedSkip = parseWeekRule(skipText);
+  const effectiveSkipWeeks = parsedSkip.recognized ? parsedSkip.weeks.filter((value) => batchMeetingWeeks.includes(value)) : [];
+
+  async function applyBatchSkip() {
+    if (!activeMeeting || batchPending) return;
+    setBatchPending(true);
+    try {
+      const previous = activeMeeting.skippedWeeks ?? [];
+      await mutation(`/api/course-meetings/${activeMeeting.id}/skip`, "PUT", { weeks: effectiveSkipWeeks });
+      onBatchSkip(activeMeeting, effectiveSkipWeeks, previous);
+      await onSaved();
+    } catch (cause) { onError(cause instanceof Error ? cause.message : "保存失败"); setBatchPending(false); }
+  }
 
   // 实时字段级校验：错误直接显示在对应输入框下方
   const validation = useMemo(() => {
@@ -374,7 +450,7 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
     {validation.name && <p className="field-error">{validation.name}</p>}
     <div className="editor-two"><label>教师<input value={instructor} maxLength={120} onChange={(event) => setInstructor(event.target.value)} /></label><label>地点<input value={location} maxLength={200} onChange={(event) => setLocation(event.target.value)} /></label></div>
     <ConflictBox conflicts={conflicts} kind="course" />
-    <div className="meeting-editor-title"><strong>上课时段</strong><span className="mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={courseMode === tab.key ? "on" : ""} onClick={() => setCourseMode(tab.key)}>{tab.label}</button>)}</span><button type="button" onClick={() => setMeetings((current) => [...current, { key: localId(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false }])}>＋ 添加时段</button></div>
+    <div className="meeting-editor-title"><strong>上课时段</strong><span className="mode-tabs">{periodModeTabs.map((tab) => <button type="button" key={tab.key} className={courseMode === tab.key ? "on" : ""} onClick={() => setCourseMode(tab.key)}>{tab.label}</button>)}</span><button type="button" onClick={() => setMeetings((current) => [...current, { key: localId(), id: "", weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: [], weekText: "1-16", skippedThisWeek: false, skippedWeeks: [] }])}>＋ 添加时段</button></div>
     {meetings.map((meeting) => <div className={`schedule-meeting-row${validation.meetings[meeting.key] ? " invalid" : ""}`} key={meeting.key}>
       <label>星期<ThemedSelect value={meeting.weekday} ariaLabel="星期" groups={[{ options: weekdayOptions }]} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekday: next as Weekday } : item))} /></label>
       <PeriodFields mode={courseMode} scheduleInfo={scheduleInfo} startPeriod={meeting.startPeriod} endPeriod={meeting.endPeriod} onChange={(start, end) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, startPeriod: start, endPeriod: Math.max(start, end) } : item))} />
@@ -384,18 +460,32 @@ function CourseEditor({ selection, week, semesterStartDate, scheduleInfo, busyBl
       <WeekQuickPicker value={meeting.weekText} onChange={(next) => setMeetings((current) => current.map((item) => item.key === meeting.key ? { ...item, weekText: next } : item))} open={openWeekGrids.includes(meeting.key)} onToggleOpen={() => setOpenWeekGrids((current) => current.includes(meeting.key) ? current.filter((key) => key !== meeting.key) : [...current, meeting.key])} />
       {validation.meetings[meeting.key] && <p className="field-error">{validation.meetings[meeting.key]}</p>}
     </div>)}
+    {existing && activeMeeting && <div className="batch-skip">
+      <button type="button" className="batch-skip-toggle" aria-expanded={batchOpen} onClick={toggleBatch}>批量标记「不去」…</button>
+      {batchOpen && <>
+        <p className="batch-skip-note">给「周{dayLabels[activeMeeting.weekday]} 第{activeMeeting.startPeriod}–{activeMeeting.endPeriod}节」一次性设置本学期不去的周次，适合整学期不去的水课。应用后会替换这一时段现有的「不去」标记。</p>
+        <div className="week-quick batch-presets">
+          <button type="button" onClick={() => presetSkipWeeks("fromNow")}>从第 {week} 周起</button>
+        </div>
+        <WeekQuickPicker value={skipText} onChange={setSkipText} open={skipGridOpen} onToggleOpen={() => setSkipGridOpen((value) => !value)} />
+        <p className="busy-weeks-preview">{effectiveSkipWeeks.length ? `将标记不去：${weeksDescription(effectiveSkipWeeks)}` : "将清除该时段的全部「不去」标记"}</p>
+        <button type="button" className="batch-apply" disabled={batchPending} onClick={applyBatchSkip}>{batchPending ? "应用中…" : "应用"}</button>
+      </>}
+    </div>}
   </div><footer>{existing && <button className="danger-link" type="button" disabled={pending} onClick={remove}>删除课程</button>}<span />{activeMeeting?.weeks.includes(week) && <button className="secondary-action" type="button" disabled={pending} onClick={toggleSkip} title="只影响这一周的这一次课">{activeMeeting.skippedThisWeek ? `恢复第 ${week} 周（${skipDate}）` : `第 ${week} 周（${skipDate}）这节不去`}</button>}<button className="editor-save" type="button" disabled={pending || hasFieldErrors} onClick={save} title={hasFieldErrors ? "请先修正标红的字段" : undefined}>{pending ? "保存中…" : "保存"}</button></footer></section></div>;
 }
 
 function BusyEditor({ scheduleInfo, selection, week, courses, onClose, onSaved, onError }: BusyEditorProps) {
   const block = selection.block;
+  const prefill = selection.prefill;
+  // 从空格子点入时按点击位置预填星期与节次，默认「仅本周」
   // 新增时默认「仅本周」（当前查看周）；已有的一次性忙碌按自定义周展示，避免编辑时被悄悄改成当前周
   const initialRepeat = block ? (block.kind === "ONE_TIME" ? "CUSTOM" : weeksText(block.weeks) === "1-16" ? "EVERY" : weeksText(block.weeks) === "单周" ? "ODD" : weeksText(block.weeks) === "双周" ? "EVEN" : "CUSTOM") : "THIS_WEEK";
   const [title, setTitle] = useState(block?.title ?? "");
   const [busyMode, setBusyMode] = useState<PeriodMode>("school");
-  const [weekday, setWeekday] = useState<Weekday>(block?.weekday ?? "monday");
-  const [startPeriod, setStartPeriod] = useState(block?.startPeriod ?? 1);
-  const [endPeriod, setEndPeriod] = useState(block?.endPeriod ?? 2);
+  const [weekday, setWeekday] = useState<Weekday>(block?.weekday ?? prefill?.weekday ?? "monday");
+  const [startPeriod, setStartPeriod] = useState(block?.startPeriod ?? prefill?.startPeriod ?? 1);
+  const [endPeriod, setEndPeriod] = useState(block?.endPeriod ?? prefill?.endPeriod ?? 2);
   const [repeat, setRepeat] = useState(initialRepeat);
   const [customWeeks, setCustomWeeks] = useState(block ? weeksText(block.weeks) : String(week));
   const [pending, setPending] = useState(false);
