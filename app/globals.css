@@ -694,6 +694,19 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--pku-red); outli
 .import-help summary { color: var(--brand-800); font-weight: 650; cursor: pointer; }
 .import-help div { margin-top: 10px; display: grid; gap: 8px; color: var(--text-secondary); line-height: 1.7; }
 .import-help p { margin: 0; }
+.ai-import { margin-top: 18px; padding: 15px 16px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-warm); display: grid; gap: 9px; }
+.ai-import h2 { margin: 0; font-size: 15px; }
+.ai-import p { margin: 0; color: var(--text-secondary); font-size: 12.5px; line-height: 1.65; }
+.ai-import-actions { display: flex; align-items: center; gap: 10px; }
+.ai-import-actions button { min-height: 38px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text-primary); background: var(--surface); font-size: 13px; font-weight: 650; cursor: pointer; }
+.ai-import-actions button:hover { border-color: #bdb2ab; }
+.ai-import-actions span { color: var(--text-tertiary); font-size: 12px; }
+.ai-import textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 13px; line-height: 1.6; resize: vertical; }
+.ai-import textarea:focus { outline: 2px solid rgb(148 7 10 / 16%); border-color: var(--pku-red); }
+.ai-import small { color: var(--text-tertiary); font-size: 11.5px; line-height: 1.6; }
+.ai-import-submit { min-height: 42px; border: 0; border-radius: 9px; color: #fff; background: var(--pku-red); font-size: 14px; font-weight: 650; cursor: pointer; }
+.ai-import-submit:hover:not(:disabled) { background: #7d0609; }
+.ai-import-submit:disabled { opacity: .55; cursor: default; }
 
 .import-course-card { position: relative; }
 .import-course-card.flash::after { content: ""; position: absolute; inset: -3px; border: 2px solid var(--pku-red); border-radius: 16px; pointer-events: none; animation: fade-in 200ms ease both; }
