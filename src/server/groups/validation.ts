@@ -13,3 +13,16 @@ export const joinGroupSchema = z.object({
 });
 
 export const privacySchema = z.object({ privacyLevel });
+
+export const groupUpdateSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("rename"),
+    name: z.string().trim().min(1, "请输入群组名称").max(80, "群组名称过长"),
+  }).strict(),
+  z.object({
+    action: z.literal("archive"),
+    archived: z.boolean(),
+  }).strict(),
+]);
+
+export const transferOwnershipSchema = z.object({ role: z.literal("OWNER") }).strict();

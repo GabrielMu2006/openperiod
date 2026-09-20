@@ -682,13 +682,14 @@ export const DEFAULT_SCHEDULE = PKU_SCHEDULE;
 export interface ScheduleDTO {
   id: string;
   school: string;
+  variant?: string;
   kind: "period" | "block";
   rows: ScheduleRow[];
   blocks?: ScheduleBlock[];
 }
 
 export function toScheduleDTO(preset: SchedulePreset): ScheduleDTO {
-  return { id: preset.id, school: preset.school, kind: preset.kind, rows: preset.rows, blocks: preset.blocks };
+  return { id: preset.id, school: preset.school, variant: preset.variant, kind: preset.kind, rows: preset.rows, blocks: preset.blocks };
 }
 
 /** 学期行的作息解析：custom_schedule 优先，否则按 scheduleId 查注册表 */

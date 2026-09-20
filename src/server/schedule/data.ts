@@ -3,9 +3,9 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { z } from "zod";
 import type { Weekday } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
-import { busyBlocks, courseExceptions, courseMeetings, courses, users } from "@/src/server/db/schema";
+import { busyBlocks, courseExceptions, courseMeetings, courses, semesterConfirmations, users } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
-import { ensureDefaultSemester } from "@/src/server/semesters/data";
+import { ensureDefaultSemester, getUserCustomRows } from "@/src/server/semesters/data";
 import { scheduleFromSemester } from "@/src/config/school-schedules";
 
 // 用户的学期跟随其学校作息；未设置学校时回落北大默认
@@ -33,9 +33,19 @@ const weekdayFromNumber: Record<number, Weekday> = {
   5: "friday", 6: "saturday", 7: "sunday",
 };
 
+// 周次由目标学期的实际周数驱动，而不是全局硬编码（SCH-02）
+function assertWeeksInSemester(weeks: number[], weekCount: number) {
+  if (weeks.some((week) => week < 1 || week > weekCount)) {
+    throw new HttpError(400, `周次超出本学期范围（1–${weekCount} 周）`);
+  }
+}
+
 export async function getMySchedule(userId: string, requestedWeek?: number) {
   const db = getDatabase();
   const semester = await ensureUserSemester(userId);
+  if (requestedWeek !== undefined && requestedWeek > semester.weekCount) {
+    throw new HttpError(400, `教学周超出本学期范围（1–${semester.weekCount} 周）`);
+  }
   const week = requestedWeek ?? semester.currentWeek;
   const courseRows = await db.select().from(courses)
     .where(and(eq(courses.userId, userId), eq(courses.semesterId, semester.id)));
@@ -50,6 +60,15 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
     db.select().from(busyBlocks)
       .where(and(eq(busyBlocks.userId, userId), eq(busyBlocks.semesterId, semester.id))),
   ]);
+  const [confirmation] = await db
+    .select({ confirmedAt: semesterConfirmations.confirmedAt })
+    .from(semesterConfirmations)
+    .where(and(eq(semesterConfirmations.userId, userId), eq(semesterConfirmations.semesterId, semester.id)))
+    .limit(1);
+  // 自定义作息按用户隔离：读自己的网格，而不是共享学期行上的历史列（SCH-01）
+  const customRows = semester.scheduleId === "custom"
+    ? await getUserCustomRows(userId, semester.academicYear, semester.semester)
+    : null;
   const skipped = new Set(exceptionRows.filter((exception) => exception.week === week).map((exception) => exception.courseMeetingId));
   // 每个时段被标记「不去」的全部周次，供批量管理使用
   const skipsByMeeting = new Map<string, number[]>();
@@ -67,10 +86,12 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
       currentWeek: semester.currentWeek,
       weekCount: semester.weekCount,
       startDate: semester.startDate,
+      timezone: semester.timezone,
       scheduleId: semester.scheduleId,
-      schedule: scheduleFromSemester({ scheduleId: semester.scheduleId, customSchedule: semester.customSchedule }),
+      schedule: scheduleFromSemester({ scheduleId: semester.scheduleId, customSchedule: customRows }),
     },
     week,
+    confirmedEmpty: Boolean(confirmation),
     courses: courseRows.map((course) => ({
       id: course.id,
       name: course.name,
@@ -101,6 +122,7 @@ export async function getMySchedule(userId: string, requestedWeek?: number) {
 export async function createCourse(userId: string, input: CourseInput) {
   const db = getDatabase();
   const semester = await ensureUserSemester(userId);
+  for (const meeting of input.meetings) assertWeeksInSemester(meeting.weeks, semester.weekCount);
   return db.transaction(async (tx) => {
     const [course] = await tx.insert(courses).values({
       userId, semesterId: semester.id, name: input.name,
@@ -117,6 +139,8 @@ export async function createCourse(userId: string, input: CourseInput) {
 
 export async function updateCourse(userId: string, courseId: string, input: CourseInput) {
   const db = getDatabase();
+  const semester = await ensureUserSemester(userId);
+  for (const meeting of input.meetings) assertWeeksInSemester(meeting.weeks, semester.weekCount);
   await db.transaction(async (tx) => {
     const [course] = await tx.update(courses).set({
       name: input.name, instructor: input.instructor || null, location: input.location || null,
@@ -190,8 +214,23 @@ export async function replaceMeetingSkips(userId: string, meetingId: string, wee
   });
 }
 
+// 显式确认/取消「本学期无课」：让共同空闲能把「未知课表」和「确认无课」区分开（AV-03）
+export async function setSemesterConfirmedEmpty(userId: string, confirmed: boolean) {
+  const db = getDatabase();
+  const semester = await ensureUserSemester(userId);
+  if (confirmed) {
+    await db.insert(semesterConfirmations).values({ userId, semesterId: semester.id })
+      .onConflictDoNothing({ target: [semesterConfirmations.userId, semesterConfirmations.semesterId] });
+  } else {
+    await db.delete(semesterConfirmations)
+      .where(and(eq(semesterConfirmations.userId, userId), eq(semesterConfirmations.semesterId, semester.id)));
+  }
+  return { confirmedEmpty: confirmed };
+}
+
 export async function createBusyBlock(userId: string, input: BusyInput) {
   const semester = await ensureUserSemester(userId);
+  assertWeeksInSemester(input.weeks, semester.weekCount);
   const [block] = await getDatabase().insert(busyBlocks).values({
     userId, semesterId: semester.id, kind: input.kind, title: input.title || null,
     weekday: weekdayNumber[input.weekday], startPeriod: input.startPeriod,
@@ -202,6 +241,8 @@ export async function createBusyBlock(userId: string, input: BusyInput) {
 }
 
 export async function updateBusyBlock(userId: string, busyId: string, input: BusyInput) {
+  const semester = await ensureUserSemester(userId);
+  assertWeeksInSemester(input.weeks, semester.weekCount);
   const [block] = await getDatabase().update(busyBlocks).set({
     kind: input.kind, title: input.title || null, weekday: weekdayNumber[input.weekday],
     startPeriod: input.startPeriod, endPeriod: input.endPeriod, weeks: input.weeks,

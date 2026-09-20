@@ -25,17 +25,19 @@ const weekdayLabels: Record<Weekday, string> = {
   friday: "五", saturday: "六", sunday: "日",
 };
 
-const EXTRACT_PROMPT = `从课表图片/文字提取课程。只输出 JSON，禁止任何其他文字、禁止 markdown 代码块。第一字符必须是 {，最后字符必须是 }。
+function extractPrompt(weekCount: number) {
+  return `从课表图片/文字提取课程。目标学期共 ${weekCount} 周。只输出 JSON，禁止任何其他文字、禁止 markdown 代码块。第一字符必须是 {，最后字符必须是 }。
 必须严格遵循此结构（courses 是数组，每条是一个上课时段）：
-{"courses":[{"name":"课程名","teacher":"","location":"地点","day":1,"periods":"3-4","time":"10:10-12:00","weeks":"1-16"}]}
+{"courses":[{"name":"课程名","teacher":"","location":"地点","day":1,"periods":"3-4","time":"10:10-12:00","weeks":"1-${weekCount}"}]}
 字段规则：
 - day: 数字 1=周一 2=周二 3=周三 4=周四 5=周五 6=周六 7=周日，从课表表头列判断
 - periods: 节次号如 "3-4"；若课表只写了时间没写节次，填 ""
 - time: 起止时间如 "10:10-12:00"
-- weeks: 周次如 "1-16"、"单周"、"双周"、"1,3,5"；没写就填 "1-16"
+- weeks: 周次如 "1-${weekCount}"、"单周"、"双周"、"1,3,5"；没写就填 "1-${weekCount}"
 - teacher / location：没有就填空字符串
 - 同一门课出现多个时段就输出多条，name 相同
-示例输出：{"courses":[{"name":"高等数学","teacher":"","location":"二教101","day":1,"periods":"3-4","time":"10:10-12:00","weeks":"1-16"}]}`;
+示例输出：{"courses":[{"name":"高等数学","teacher":"","location":"二教101","day":1,"periods":"3-4","time":"10:10-12:00","weeks":"1-${weekCount}"}]}`;
+}
 
 interface AiCourseRecord {
   name?: string;
@@ -49,7 +51,11 @@ interface AiCourseRecord {
 
 export class AiExtractError extends Error {}
 
-function buildPayload(mode: "text" | "image", input: string) {
+export function assertAiExtractionConfigured() {
+  if (!process.env.ZHIPU_API_KEY) throw new AiExtractError("AI 识别未配置，请联系站点管理员");
+}
+
+function buildPayload(mode: "text" | "image", input: string, weekCount: number) {
   if (mode === "image") {
     return {
       model: VISION_MODEL,
@@ -59,7 +65,7 @@ function buildPayload(mode: "text" | "image", input: string) {
         role: "user",
         content: [
           { type: "image_url", image_url: { url: input } },
-          { type: "text", text: EXTRACT_PROMPT },
+          { type: "text", text: extractPrompt(weekCount) },
         ],
       }],
     };
@@ -68,19 +74,19 @@ function buildPayload(mode: "text" | "image", input: string) {
     model: TEXT_MODEL,
     temperature: 0.1,
     response_format: { type: "json_object" },
-    messages: [{ role: "user", content: `${EXTRACT_PROMPT}\n\n课表内容：\n${input}` }],
+    messages: [{ role: "user", content: `${extractPrompt(weekCount)}\n\n课表内容：\n${input}` }],
   };
 }
 
-async function callZhipu(mode: "text" | "image", input: string) {
+async function callZhipu(mode: "text" | "image", input: string, weekCount: number) {
+  assertAiExtractionConfigured();
   const apiKey = process.env.ZHIPU_API_KEY;
-  if (!apiKey) throw new AiExtractError("AI 识别未配置，请联系站点管理员");
   let response: Response;
   try {
     response = await fetch(ZHIPU_API_URL, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(buildPayload(mode, input)),
+      body: JSON.stringify(buildPayload(mode, input, weekCount)),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (cause) {
@@ -117,8 +123,8 @@ function normalizeDay(value: AiCourseRecord["day"]): number | null {
   return Number.isInteger(day) && day >= 1 && day <= 7 ? day : null;
 }
 
-export async function extractCoursesWithAi(mode: "text" | "image", input: string, preset: SchedulePreset) {
-  const content = await callZhipu(mode, input);
+export async function extractCoursesWithAi(mode: "text" | "image", input: string, preset: SchedulePreset, weekCount = 16) {
+  const content = await callZhipu(mode, input, weekCount);
   const records = parseModelJson(content);
   const maxPeriod = preset.rows.length;
   const warnings: ImportWarning[] = [];
@@ -151,10 +157,10 @@ export async function extractCoursesWithAi(mode: "text" | "image", input: string
       continue;
     }
 
-    const weekResult = parseWeekRule(String(record.weeks ?? "").trim());
-    const weeks = weekResult.recognized ? weekResult.weeks : Array.from({ length: 16 }, (_, i) => i + 1);
+    const weekResult = parseWeekRule(String(record.weeks ?? "").trim(), weekCount);
+    const weeks = weekResult.recognized ? weekResult.weeks : Array.from({ length: weekCount }, (_, i) => i + 1);
     if (!weekResult.recognized) {
-      warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `「${name}」的周次无法确认，暂按 1–16 周处理`, source });
+      warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `「${name}」的周次无法确认，暂按 1–${weekCount} 周处理`, source });
     }
 
     const key = [name, String(record.teacher ?? ""), String(record.location ?? "")].join("\u0000");

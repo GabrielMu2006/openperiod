@@ -1,0 +1,14 @@
+services:
+  app:
+    image: openperiod-app:local
+    restart: unless-stopped
+    init: true
+    env_file:
+      - /opt/openperiod/.env.production
+    environment:
+      NODE_ENV: production
+      AUTH_ORIGIN: https://${OPENPERIOD_DOMAIN:?set OPENPERIOD_DOMAIN}
+      TRUST_PROXY_HEADERS: "1"
+    # The trusted-proxy boundary requires this port to stay off public interfaces.
+    ports:
+      - "127.0.0.1:3000:3000"

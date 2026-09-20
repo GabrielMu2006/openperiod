@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, X } from "@phosphor-icons/react";
 import type { ImportCourseDraft, ImportPreviewPayload } from "@/src/domain/import";
 import { buildEndOptions, buildPeriodOptions, getScheduleById } from "@/src/config/school-schedules";
+import { LoadingState } from "@/components/loading-state";
 import { ThemedSelect } from "@/components/themed-select";
 import { localId } from "@/src/config/local-id";
 import type { Weekday } from "@/src/domain/schedule";
@@ -25,10 +27,11 @@ const COURSE_COLORS = [
   "#94070a", "#1f6f43", "#205375", "#8a5a12", "#5b3a8c", "#8c2f5a", "#3a6b8c", "#5a6b1f",
 ];
 
-function weekText(weeks: number[]) {
-  if (weeks.length === 16) return "1-16";
-  if (weeks.join(",") === "1,3,5,7,9,11,13,15") return "单周";
-  if (weeks.join(",") === "2,4,6,8,10,12,14,16") return "双周";
+function weekText(weeks: number[], weekCount: number) {
+  const allWeeks = Array.from({ length: weekCount }, (_, index) => index + 1);
+  if (weeks.join(",") === allWeeks.join(",")) return `1-${weekCount}`;
+  if (weeks.join(",") === allWeeks.filter((week) => week % 2 === 1).join(",")) return "单周";
+  if (weeks.join(",") === allWeeks.filter((week) => week % 2 === 0).join(",")) return "双周";
   return weeks.join(",");
 }
 
@@ -41,6 +44,7 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
   const [resolvedWarnings, setResolvedWarnings] = useState<string[]>([]);
   const [showGrid, setShowGrid] = useState(false);
   const schedule = preview?.schedule ?? getScheduleById(preview?.scheduleId);
+  const weekCount = preview?.weekCount ?? 16;
 
   useEffect(() => {
     if (!previewId) return setError("缺少导入预览 ID");
@@ -49,7 +53,8 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
       const body = (await response.json()) as { preview?: ImportPreviewPayload; error?: string };
       if (!response.ok || !body.preview) throw new Error(body.error ?? "无法读取导入预览");
       setPreview(body.preview);
-      setCourses(body.preview.courses.map((course) => ({ ...course, meetings: course.meetings.map((meeting) => ({ ...meeting, weekText: weekText(meeting.weeks) })) })));
+      const previewWeekCount = body.preview.weekCount ?? 16;
+      setCourses(body.preview.courses.map((course) => ({ ...course, meetings: course.meetings.map((meeting) => ({ ...meeting, weekText: weekText(meeting.weeks, previewWeekCount) })) })));
     }).catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取导入预览"));
   }, [previewId, router]);
 
@@ -68,14 +73,14 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
 
   function addCourse() {
     setCourses((current) => [...current, {
-      id: localId(), name: "", meetings: [{ id: localId(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: 16 }, (_, index) => index + 1), weekText: "1-16", source: "手动新增" }],
+      id: localId(), name: "", meetings: [{ id: localId(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: weekCount }, (_, index) => index + 1), weekText: `1-${weekCount}`, source: "手动新增" }],
     }]);
   }
 
   function addMeeting(courseId: string) {
     setCourses((current) => current.map((course) => course.id === courseId ? {
       ...course,
-      meetings: [...course.meetings, { id: localId(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: 16 }, (_, index) => index + 1), weekText: "1-16", source: "手动新增" }],
+      meetings: [...course.meetings, { id: localId(), weekday: "monday", startPeriod: 1, endPeriod: 2, weeks: Array.from({ length: weekCount }, (_, index) => index + 1), weekText: `1-${weekCount}`, source: "手动新增" }],
     } : course));
   }
 
@@ -88,7 +93,8 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
     setShowGrid(false);
     requestAnimationFrame(() => {
       const card = document.querySelector<HTMLElement>(`[data-course-id="${courseId}"]`);
-      card?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      card?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
       card?.classList.add("flash");
       setTimeout(() => card?.classList.remove("flash"), 1600);
     });
@@ -101,7 +107,7 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
       if (!course.name.trim()) return setError("每门课程都需要填写课程名称");
       const meetings = [];
       for (const meeting of course.meetings) {
-        const parsed = parseWeekRule(meeting.weekText);
+        const parsed = parseWeekRule(meeting.weekText, weekCount);
         if (!parsed.recognized) return setError(`请确认“${course.name}”的周次`);
         if (meeting.endPeriod < meeting.startPeriod) return setError(`“${course.name}”的结束节次不能早于开始节次`);
         meetings.push({ ...meeting, weeks: parsed.weeks, weekText: undefined });
@@ -123,7 +129,7 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
     }
   }
 
-  if (!preview && !error) return <div className="preview-loading">正在读取解析结果…</div>;
+  if (!preview && !error) return <div className="preview-loading"><LoadingState label="正在读取解析结果…" /></div>;
 
   return (
     <div className="preview-layout">
@@ -133,7 +139,7 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
           <li className="current"><i>2</i>检查与修正</li>
           <li><i>3</i>完成导入</li>
         </ol>
-        <div className="preview-toolbar"><strong>课表预览</strong><button type="button" className={showGrid ? "toggled" : ""} onClick={() => setShowGrid((value) => !value)}>{showGrid ? "隐藏网格预览" : "网格预览"}</button><button type="button" onClick={addCourse}>＋ 手动添加课程</button></div>
+        <div className="preview-toolbar"><strong>课表预览</strong><button type="button" className={showGrid ? "toggled" : ""} onClick={() => setShowGrid((value) => !value)}>{showGrid ? "隐藏网格预览" : "网格预览"}</button><button type="button" onClick={addCourse}><Plus className="ui-icon" weight="bold" />手动添加课程</button></div>
         {showGrid && (
           <div className="import-grid-wrap">
             <div className="import-grid" aria-label="导入课表网格预览（显示全部周次）">
@@ -156,9 +162,9 @@ export function ImportPreviewEditor({ previewId }: { previewId: string }) {
             <p className="ig-note">网格预览显示全部周次的课程，用于检查星期、节次是否正确；周次请在下方课程卡里核对。</p>
           </div>
         )}
-        {courses.map((course) => <article className="import-course-card" data-course-id={course.id} key={course.id}><div className="course-fields"><label>课程名称<input value={course.name} maxLength={200} onChange={(event) => updateCourse(course.id, { name: event.target.value })} /></label><label>教师<input value={course.instructor ?? ""} maxLength={120} onChange={(event) => updateCourse(course.id, { instructor: event.target.value })} /></label><label>地点<input value={course.location ?? ""} maxLength={200} onChange={(event) => updateCourse(course.id, { location: event.target.value })} /></label><button type="button" onClick={() => setCourses((current) => current.filter((item) => item.id !== course.id))}>删除</button></div>{course.meetings.map((meeting) => <div className="meeting-fields" key={meeting.id}><label>星期<ThemedSelect value={meeting.weekday} ariaLabel="星期" groups={[{ options: weekdayOptions }]} onChange={(next) => updateMeeting(course.id, meeting.id, { weekday: next as Weekday })} /></label><label>开始<ThemedSelect searchable value={String(meeting.startPeriod)} ariaLabel="开始节次" groups={[{ options: buildPeriodOptions(schedule) }]} onChange={(next) => updateMeeting(course.id, meeting.id, { startPeriod: Number(next), endPeriod: Math.max(Number(next), meeting.endPeriod) })} /></label><label>结束<ThemedSelect searchable value={String(meeting.endPeriod)} ariaLabel="结束节次" groups={[{ options: buildEndOptions(schedule, Number(meeting.startPeriod) || 1) }]} onChange={(next) => updateMeeting(course.id, meeting.id, { endPeriod: Number(next) })} /></label><label className="weeks-field">周次<input value={meeting.weekText} onChange={(event) => updateMeeting(course.id, meeting.id, { weekText: event.target.value })} placeholder="1-16 / 单周 / 双周" /></label><small>{meeting.source}</small><button type="button" aria-label="删除此时段" disabled={course.meetings.length === 1} onClick={() => removeMeeting(course.id, meeting.id)}>×</button></div>)}<button type="button" className="add-meeting" onClick={() => addMeeting(course.id)}>＋ 添加时段</button></article>)}
+        {courses.map((course) => <article className="import-course-card" data-course-id={course.id} key={course.id}><div className="course-fields"><label>课程名称<input value={course.name} maxLength={200} onChange={(event) => updateCourse(course.id, { name: event.target.value })} /></label><label>教师<input value={course.instructor ?? ""} maxLength={120} onChange={(event) => updateCourse(course.id, { instructor: event.target.value })} /></label><label>地点<input value={course.location ?? ""} maxLength={200} onChange={(event) => updateCourse(course.id, { location: event.target.value })} /></label><button type="button" onClick={() => setCourses((current) => current.filter((item) => item.id !== course.id))}>删除</button></div>{course.meetings.map((meeting) => <div className="meeting-fields" key={meeting.id}><label>星期<ThemedSelect value={meeting.weekday} ariaLabel="星期" groups={[{ options: weekdayOptions }]} onChange={(next) => updateMeeting(course.id, meeting.id, { weekday: next as Weekday })} /></label><label>开始<ThemedSelect searchable value={String(meeting.startPeriod)} ariaLabel="开始节次" groups={[{ options: buildPeriodOptions(schedule) }]} onChange={(next) => updateMeeting(course.id, meeting.id, { startPeriod: Number(next), endPeriod: Math.max(Number(next), meeting.endPeriod) })} /></label><label>结束<ThemedSelect searchable value={String(meeting.endPeriod)} ariaLabel="结束节次" groups={[{ options: buildEndOptions(schedule, Number(meeting.startPeriod) || 1) }]} onChange={(next) => updateMeeting(course.id, meeting.id, { endPeriod: Number(next) })} /></label><label className="weeks-field">周次<input value={meeting.weekText} onChange={(event) => updateMeeting(course.id, meeting.id, { weekText: event.target.value })} placeholder={`1-${weekCount} / 单周 / 双周`} /></label><small>{meeting.source}</small><button type="button" className="icon-button" aria-label="删除此时段" disabled={course.meetings.length === 1} onClick={() => removeMeeting(course.id, meeting.id)}><X className="ui-icon" weight="bold" /></button></div>)}<button type="button" className="add-meeting" onClick={() => addMeeting(course.id)}><Plus className="ui-icon" weight="bold" />添加时段</button></article>)}
       </section>
-      <aside className="preview-aside"><h2>导入检查</h2><div className="import-stats"><span><strong>{courses.length}</strong> 门课程</span><span><strong>{meetingCount}</strong> 个上课时段</span><span className={openWarnings.length ? "warning" : ""}><strong>{openWarnings.length}</strong> 项待确认</span></div>{openWarnings.map((warning) => <div className="warning-card" key={warning.id}><strong>需要确认{warning.courseId ? ` · ${courseNameById.get(warning.courseId) ?? ""}` : ""}</strong><p>{warning.message}</p><small>来源：{warning.source}</small><div className="warning-actions">{warning.courseId && <button type="button" className="locate" onClick={() => locateWarning(warning.courseId)}>定位课程</button>}<button type="button" onClick={() => setResolvedWarnings((current) => [...current, warning.id])}>标记已解决</button></div></div>)}{preview && preview.warnings.length > 0 && openWarnings.length === 0 && <p className="all-resolved">全部警告已标记解决。</p>}<p className="atomic-note">确认后将替换本学期全部课程，课程上的“本周不去”标记会随之清除；私人忙碌不受影响。导入前的课表会自动保留 7 天，可一键恢复。确认前不会修改正式课表。</p></aside>
+      <aside className="preview-aside"><h2>导入检查</h2><div className="import-stats"><span><strong>{courses.length}</strong> 门课程</span><span><strong>{meetingCount}</strong> 个上课时段</span><span className={openWarnings.length ? "warning" : ""}><strong>{openWarnings.length}</strong> 项待确认</span></div>{preview && <section className="import-target-card" aria-label="导入目标"><small>导入目标</small><strong>{schedule.school}{schedule.variant ? `（${schedule.variant}）` : ""}</strong><span>{preview.targetSemester ? `${preview.targetSemester.academicYear} ${preview.targetSemester.semester}` : "当前学期"} · {schedule.rows.length} 节作息</span><p>确认后只替换这个目标学期的课程，并将“我的课表”切换到这里；其他学校的课程不会被删除。</p></section>}{openWarnings.map((warning) => <div className="warning-card" key={warning.id}><strong>需要确认{warning.courseId ? ` · ${courseNameById.get(warning.courseId) ?? ""}` : ""}</strong><p>{warning.message}</p><small>来源：{warning.source}</small><div className="warning-actions">{warning.courseId && <button type="button" className="locate" onClick={() => locateWarning(warning.courseId)}>定位课程</button>}<button type="button" onClick={() => setResolvedWarnings((current) => [...current, warning.id])}>标记已解决</button></div></div>)}{preview && preview.warnings.length > 0 && openWarnings.length === 0 && <p className="all-resolved">全部警告已标记解决。</p>}<p className="atomic-note">确认后，目标学期课程上的“本周不去”标记会随课程替换而清除；私人忙碌不受影响。目标学期原课表会自动保留 7 天，可一键恢复。确认前不会修改正式课表。</p></aside>
       {error && <div className="preview-error" role="alert">{error}</div>}
       <footer className="preview-actions"><a href="/import">取消</a><button type="button" disabled={pending || !courses.length} onClick={confirm}>{pending ? "正在导入…" : `确认导入 ${courses.length} 门课程`}</button></footer>
     </div>

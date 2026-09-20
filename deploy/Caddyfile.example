@@ -1,0 +1,14 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$OPENPERIOD_DOMAIN} {
+	encode zstd gzip
+
+	# Caddy owns public ports 80/443 and automatically redirects HTTP to HTTPS.
+	# The upstream port must only be reachable from this host.
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}

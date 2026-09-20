@@ -16,4 +16,11 @@ describe("parseWeekRule", () => {
   it("marks an empty rule as needing confirmation", () => {
     expect(parseWeekRule("").recognized).toBe(false);
   });
+
+  it("uses the target semester length for all, odd, even and late-week rules", () => {
+    expect(parseWeekRule("1-20", 20)).toEqual({ weeks: Array.from({ length: 20 }, (_, index) => index + 1), recognized: true });
+    expect(parseWeekRule("单周", 20).weeks).toEqual([1, 3, 5, 7, 9, 11, 13, 15, 17, 19]);
+    expect(parseWeekRule("双周", 20).weeks).toEqual([2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
+    expect(parseWeekRule("17-20", 20)).toEqual({ weeks: [17, 18, 19, 20], recognized: true });
+  });
 });

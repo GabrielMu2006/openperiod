@@ -31,6 +31,8 @@ export const users = pgTable(
     // 用户默认作息预设（导入页/建群时的学校标签）；null = 未设置
     scheduleId: varchar("schedule_id", { length: 64 }),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    passwordHash: text("password_hash"),
+    authVersion: integer("auth_version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -62,11 +64,40 @@ export const sessions = pgTable(
   {
     tokenHash: varchar("token_hash", { length: 64 }).primaryKey(),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // NULL marks sessions issued before password authentication; they cannot authenticate.
+    authVersion: integer("auth_version"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId), index("sessions_expires_at_idx").on(table.expiresAt)],
 );
+
+export const passwordChallenges = pgTable("password_challenges", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  purpose: varchar("purpose", { length: 32 }).$type<"REGISTER" | "SET_PASSWORD" | "RESET_PASSWORD">().notNull(),
+  codeHash: varchar("code_hash", { length: 64 }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("password_challenges_email_idx").on(table.email),
+  check("password_challenges_purpose_check", sql`${table.purpose} in ('REGISTER', 'SET_PASSWORD', 'RESET_PASSWORD')`),
+]);
+
+// Send reservations survive challenge expiry and include ineligible/unknown accounts.
+export const authMailEvents = pgTable("auth_mail_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("auth_mail_events_email_created_idx").on(table.email, table.createdAt)]);
+
+export const authRateLimits = pgTable("auth_rate_limits", {
+  key: varchar("key", { length: 128 }).primaryKey(),
+  count: integer("count").notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
 
 export const semesters = pgTable(
   "semesters",
@@ -89,6 +120,25 @@ export const semesters = pgTable(
   ],
 );
 
+// 成员对某学期显式确认「本学期无课」；用于把「未知课表」和「确认无课」区分开（AV-03）
+export const semesterConfirmations = pgTable("semester_confirmations", {
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  semesterId: uuid("semester_id").notNull().references(() => semesters.id, { onDelete: "cascade" }),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.userId, table.semesterId] })]);
+
+// 用户自己的自定义作息（按用户 + 学年/学期隔离）；semesters.custom_schedule 列为
+// 旧共享方案的历史数据，新代码不再读写（SCH-01）
+export const customSchedules = pgTable("custom_schedules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  academicYear: varchar("academic_year", { length: 16 }).notNull(),
+  semester: varchar("semester", { length: 32 }).notNull(),
+  scheduleRows: jsonb("schedule_rows").$type<{ start: string; end: string; label?: string }[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("custom_schedules_user_term_unique").on(table.userId, table.academicYear, table.semester)]);
+
 export const groups = pgTable(
   "groups",
   {
@@ -97,6 +147,8 @@ export const groups = pgTable(
     inviteCode: varchar("invite_code", { length: 12 }).notNull(),
     ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     semesterId: uuid("semester_id").notNull().references(() => semesters.id, { onDelete: "restrict" }),
+    // 软归档：保留群组、成员关系和历史数据，可由群主恢复
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique("groups_invite_code_unique").on(table.inviteCode), index("groups_owner_id_idx").on(table.ownerId)],

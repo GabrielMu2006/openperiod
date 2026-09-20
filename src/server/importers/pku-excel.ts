@@ -198,7 +198,7 @@ function finalize(format: "ROW" | "GRID", courses: ImportCourseDraft[], warnings
   };
 }
 
-function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findRowHeader>>, preset: SchedulePreset) {
+function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findRowHeader>>, preset: SchedulePreset, weekCount: number) {
   const maxPeriod = preset.rows.length;
   const coursesByKey = new Map<string, ImportCourseDraft>();
   const warnings: ImportWarning[] = [];
@@ -233,7 +233,7 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
     } else {
       period = parsePeriodRange(`${cellText(row[header.map.startPeriod!])}-${cellText(row[header.map.endPeriod!])}`, maxPeriod);
     }
-    const weekResult = parseWeekRule(header.map.weeks !== undefined ? cellText(row[header.map.weeks]) : "");
+    const weekResult = parseWeekRule(header.map.weeks !== undefined ? cellText(row[header.map.weeks]) : "", weekCount);
     if (!weekday || !period) {
       warnings.push({ id: randomUUID(), code: "INVALID_ROW", message: `无法确认“${name}”的星期或节次，已跳过`, source: rowSource });
       continue;
@@ -244,7 +244,7 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
     const key = [name, instructor, location].join("\u0000");
     const course = coursesByKey.get(key) ?? { id: randomUUID(), name, instructor: instructor || undefined, location: location || undefined, meetings: [] };
     if (!weekResult.recognized) {
-      warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${name}”的周次，暂按 1–16 周处理`, source: rowSource, courseId: course.id, field: "weeks" });
+      warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${name}”的周次，暂按 1–${weekCount} 周处理`, source: rowSource, courseId: course.id, field: "weeks" });
     }
     course.meetings.push({ id: randomUUID(), weekday, startPeriod: period[0], endPeriod: period[1], weeks: weekResult.weeks, source: rowSource });
     coursesByKey.set(key, course);
@@ -252,7 +252,7 @@ function parseRowSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof f
   return finalize("ROW", [...coursesByKey.values()], warnings);
 }
 
-function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findGridHeader>>, preset: SchedulePreset) {
+function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof findGridHeader>>, preset: SchedulePreset, weekCount: number) {
   const coursesByKey = new Map<string, ImportCourseDraft>();
   const warnings: ImportWarning[] = [];
   const firstDayColumn = Math.min(...header.columns.keys());
@@ -267,11 +267,11 @@ function parseGridSheet(sheet: SheetData, header: NonNullable<ReturnType<typeof 
       if (!text) continue;
       const cellSource = source(sheet, rowIndex, column);
       for (const entry of parseGridCell(text)) {
-        const weeks = resolveGridWeeks(entry);
+        const weeks = resolveGridWeeks(entry, weekCount);
         const key = [entry.name, entry.location ?? ""].join("\u0000");
         const course = coursesByKey.get(key) ?? { id: randomUUID(), name: entry.name, location: entry.location, meetings: [] };
         if (!weeks.recognized) {
-          warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${entry.name}”的周次，暂按 1–16 周处理`, source: cellSource, courseId: course.id, field: "weeks" });
+          warnings.push({ id: randomUUID(), code: "MISSING_WEEKS", message: `无法确认“${entry.name}”的周次，暂按 1–${weekCount} 周处理`, source: cellSource, courseId: course.id, field: "weeks" });
         }
         const extendable = course.meetings.find((meeting) =>
           meeting.weekday === weekday && meeting.endPeriod === period[0] - 1 && meeting.weeks.join(",") === weeks.weeks.join(","));
@@ -316,22 +316,22 @@ function parseGridCell(text: string): GridCellEntry[] {
   return entries;
 }
 
-function resolveGridWeeks(entry: GridCellEntry): WeekParseResult {
+function resolveGridWeeks(entry: GridCellEntry, weekCount: number): WeekParseResult {
   const pku = entry.weekText.match(PKU_EXAM_WEEK_PATTERN);
   if (pku) {
     return pku[1] === "每周"
-      ? { weeks: Array.from({ length: 16 }, (_, index) => index + 1), recognized: true }
-      : parseWeekRule(pku[1]);
+      ? { weeks: Array.from({ length: weekCount }, (_, index) => index + 1), recognized: true }
+      : parseWeekRule(pku[1], weekCount);
   }
-  return parseWeekRule(entry.weekText);
+  return parseWeekRule(entry.weekText, weekCount);
 }
 
-export function parseWorkbookSheets(sheets: SheetData[], preset: SchedulePreset = PKU_SCHEDULE): ImportPreviewPayload {
+export function parseWorkbookSheets(sheets: SheetData[], preset: SchedulePreset = PKU_SCHEDULE, weekCount = 16): ImportPreviewPayload {
   let recognizedStructure = false;
   for (const sheet of sheets) {
     const header = findRowHeader(sheet, preset);
     if (header) {
-      const result = parseRowSheet(sheet, header, preset);
+      const result = parseRowSheet(sheet, header, preset, weekCount);
       if (result.courses.length) return result;
       recognizedStructure = true;
     }
@@ -339,7 +339,7 @@ export function parseWorkbookSheets(sheets: SheetData[], preset: SchedulePreset 
   for (const sheet of sheets) {
     const header = findGridHeader(sheet);
     if (header) {
-      const result = parseGridSheet(sheet, header, preset);
+      const result = parseGridSheet(sheet, header, preset, weekCount);
       if (result.courses.length) return result;
       recognizedStructure = true;
     }
@@ -380,7 +380,7 @@ export class PkuExcelImporter implements TimetableImporter {
     return { supported: false, format: null, confidence: 0, reason: `未识别到课表内容：目前支持${preset.school}教务课表或课隙标准模板` };
   }
 
-  async parse(file: ArrayBuffer, preset: SchedulePreset = PKU_SCHEDULE): Promise<ImportPreviewPayload> {
-    return parseWorkbookSheets(await readSheets(file), preset);
+  async parse(file: ArrayBuffer, preset: SchedulePreset = PKU_SCHEDULE, weekCount = 16): Promise<ImportPreviewPayload> {
+    return parseWorkbookSheets(await readSheets(file), preset, weekCount);
   }
 }

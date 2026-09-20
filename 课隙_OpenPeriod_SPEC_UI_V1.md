@@ -1,4 +1,8 @@
 # 课隙 · OpenPeriod
+
+> [!IMPORTANT]
+> 本文是项目早期的 V1 产品与视觉基线，保留用于追溯设计意图，并非当前实现合约。当前代码已经采用邮箱＋密码认证、邮箱验证、多学校／自定义作息、动态教学周、AI 导入、7 天导入恢复点和群组软归档；因此下文“邮箱无需验证即可恢复身份”“仅支持 PKU”“固定 16 周”“多学校属于未来版本”等描述均已过时。请以 [README](./README.md)、[当前实施基线](./IMPLEMENTATION.md) 和 [部署指南](./DEPLOY.md) 为准；本轮问题与交付证据见 [项目审查与改进计划](./PROJECT_REVIEW_AND_IMPROVEMENT_PLAN.md)。
+
 ## V1 Product & UI Specification
 
 > **中文品牌名：课隙**  

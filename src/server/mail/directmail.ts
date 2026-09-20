@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, randomUUID } from "node:crypto";
 import { HttpError } from "@/src/server/http";
+import type { ChallengePurpose } from "@/src/domain/auth";
 
 const DIRECTMAIL_ENDPOINT = "https://dm.aliyuncs.com/";
 
@@ -53,6 +54,7 @@ async function postDirectMail(params: Record<string, string>) {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(params),
+    signal: AbortSignal.timeout(15_000),
   });
   const body = (await response.json().catch(() => ({}))) as { Code?: string; Message?: string };
   if (!response.ok || body.Code) {
@@ -60,7 +62,8 @@ async function postDirectMail(params: Record<string, string>) {
   }
 }
 
-export async function sendVerificationMail(to: string, code: string) {
+export async function sendVerificationMail(to: string, code: string, purpose: ChallengePurpose) {
+  const action = { REGISTER: "注册账号", SET_PASSWORD: "首次设置密码", RESET_PASSWORD: "重置密码" }[purpose];
   const accessKeyId = process.env.DIRECTMAIL_ACCESS_KEY_ID;
   const accessKeySecret = process.env.DIRECTMAIL_ACCESS_KEY_SECRET;
   const account = process.env.DIRECTMAIL_ACCOUNT;
@@ -72,9 +75,9 @@ export async function sendVerificationMail(to: string, code: string) {
       AddressType: "1",
       FromAlias: process.env.DIRECTMAIL_FROM_ALIAS ?? "课隙",
       ReplyToAddress: "false",
-      HtmlBody: `<div style="font-family:PingFang SC,Microsoft YaHei,sans-serif;max-width:420px;margin:0 auto;padding:28px;border:1px solid #e6e0db;border-radius:14px;"><h2 style="margin:0 0 12px;color:#94070a;">课隙 OpenPeriod</h2><p style="margin:0 0 18px;color:#6e6565;font-size:14px;">你的登录验证码：</p><p style="margin:0 0 18px;font-size:30px;letter-spacing:8px;font-weight:700;color:#201b1b;">${code}</p><p style="margin:0;color:#968d8d;font-size:12px;">15 分钟内有效。如果不是你本人操作，请忽略这封邮件。</p></div>`,
-      Subject: "课隙登录验证码",
-      TextBody: `你的课隙验证码是 ${code}，15 分钟内有效。如果不是你本人操作，请忽略这封邮件。`,
+      HtmlBody: `<div style="font-family:PingFang SC,Microsoft YaHei,sans-serif;max-width:420px;margin:0 auto;padding:28px;border:1px solid #e6e0db;border-radius:14px;"><h2 style="margin:0 0 12px;color:#94070a;">课隙 OpenPeriod</h2><p style="margin:0 0 18px;color:#6e6565;font-size:14px;">你的${action}验证码：</p><p style="margin:0 0 18px;font-size:30px;letter-spacing:8px;font-weight:700;color:#201b1b;">${code}</p><p style="margin:0;color:#968d8d;font-size:12px;">15 分钟内有效。请勿向任何人透露验证码。如果不是你本人操作，请忽略这封邮件。</p></div>`,
+      Subject: `课隙${action}验证码`,
+      TextBody: `你的课隙${action}验证码是 ${code}，15 分钟内有效。请勿向任何人透露验证码。如果不是你本人操作，请忽略这封邮件。`,
       ToAddress: to,
     },
     { accessKeyId, accessKeySecret, region: process.env.DIRECTMAIL_REGION },

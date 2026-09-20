@@ -1,10 +1,10 @@
 import "server-only";
-import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import type { ImportCourseDraft, ImportPreviewPayload, ImportSnapshotPayload } from "@/src/domain/import";
 import { IMPORT_SNAPSHOT_TTL_MS } from "@/src/domain/import";
 import type { Weekday } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
-import { courseExceptions, courseMeetings, courses, importPreviews, importSnapshots, semesters, users } from "@/src/server/db/schema";
+import { courseExceptions, courseMeetings, courses, customSchedules, importPreviews, importSnapshots, semesters, users } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
 import { ensureDefaultSemester } from "@/src/server/semesters/data";
 
@@ -15,13 +15,23 @@ const weekdayNumber: Record<Weekday, number> = {
 
 export async function createImportPreview(userId: string, payload: ImportPreviewPayload, scheduleId?: string | null) {
   const semester = await ensureDefaultSemester(scheduleId);
+  const normalizedPayload = {
+    ...payload,
+    weekCount: semester.weekCount,
+    targetSemester: {
+      academicYear: semester.academicYear,
+      semester: semester.semester,
+      startDate: semester.startDate,
+      weekCount: semester.weekCount,
+    },
+  };
   const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
   const [preview] = await getDatabase()
     .insert(importPreviews)
-    .values({ userId, semesterId: semester.id, payload, expiresAt })
+    .values({ userId, semesterId: semester.id, payload: normalizedPayload, expiresAt })
     .returning({ id: importPreviews.id });
   if (!preview) throw new Error("Failed to create import preview");
-  return { id: preview.id, expiresAt, ...payload };
+  return { id: preview.id, expiresAt, ...normalizedPayload };
 }
 
 export async function getImportPreview(userId: string, previewId: string) {
@@ -37,26 +47,47 @@ export async function getImportPreview(userId: string, previewId: string) {
 export async function confirmImport(userId: string, previewId: string, drafts: ImportCourseDraft[]) {
   const db = getDatabase();
 
-  const snapshotId = await db.transaction(async (tx) => {
+  const { snapshotId, targetScheduleId } = await db.transaction(async (tx) => {
     const [preview] = await tx
       .delete(importPreviews)
       .where(and(eq(importPreviews.id, previewId), eq(importPreviews.userId, userId), gt(importPreviews.expiresAt, new Date())))
-      .returning({ semesterId: importPreviews.semesterId });
+      .returning({ semesterId: importPreviews.semesterId, payload: importPreviews.payload });
     if (!preview) throw new HttpError(404, "导入预览不存在、已过期或已确认");
     const [previewSemester] = await tx
-      .select({ scheduleId: semesters.scheduleId })
+      .select({ scheduleId: semesters.scheduleId, academicYear: semesters.academicYear, semester: semesters.semester, weekCount: semesters.weekCount })
       .from(semesters)
       .where(eq(semesters.id, preview.semesterId))
       .limit(1);
+    if (!previewSemester) throw new Error("Import preview semester does not exist");
+    const targetScheduleId = previewSemester.scheduleId ?? "pku";
+    // 导入周次由目标学期的实际周数驱动（SCH-02）
+    for (const draft of drafts) {
+      for (const meeting of draft.meetings) {
+        if (meeting.weeks.some((week) => week < 1 || week > previewSemester.weekCount)) {
+          throw new HttpError(400, `周次超出本学期范围（1–${previewSemester.weekCount} 周）`);
+        }
+      }
+    }
 
     // 替换前先把现有课表（含「本周不去」）存成快照，7 天内可一键恢复
     const savedSnapshotId = await snapshotCurrentCourses(tx, userId, preview.semesterId);
 
     await tx.delete(courses).where(and(eq(courses.userId, userId), eq(courses.semesterId, preview.semesterId)));
-    // 首次导入自动记住所选学校，之后建群默认使用同一作息
-    if (previewSemester?.scheduleId) {
-      await tx.update(users).set({ scheduleId: previewSemester.scheduleId })
-        .where(and(eq(users.id, userId), isNull(users.scheduleId)));
+    // 确认导入后把“我的课表”切到目标学校；北大历史学期的 schedule_id 为 null，显式归一为 pku。
+    // 课程删除仍只限定目标 semesterId，其他学校的课表原样保留（IMP-02）。
+    const [updatedUser] = await tx.update(users)
+      .set({ scheduleId: targetScheduleId, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id });
+    if (!updatedUser) throw new Error("Import preview user does not exist");
+    // 自定义作息在确认时才落到用户自己名下；预览阶段不产生任何正式写入（SCH-01）
+    if (previewSemester?.scheduleId === "custom" && preview.payload.customRows?.length) {
+      await tx.insert(customSchedules)
+        .values({ userId, academicYear: previewSemester.academicYear, semester: previewSemester.semester, scheduleRows: preview.payload.customRows })
+        .onConflictDoUpdate({
+          target: [customSchedules.userId, customSchedules.academicYear, customSchedules.semester],
+          set: { scheduleRows: preview.payload.customRows, updatedAt: new Date() },
+        });
     }
     for (const draft of drafts) {
       const [course] = await tx
@@ -80,13 +111,14 @@ export async function confirmImport(userId: string, previewId: string, drafts: I
         })),
       );
     }
-    return savedSnapshotId;
+    return { snapshotId: savedSnapshotId, targetScheduleId };
   });
 
   return {
     courseCount: drafts.length,
     meetingCount: drafts.reduce((sum, course) => sum + course.meetings.length, 0),
     snapshotId,
+    targetScheduleId,
   };
 }
 
@@ -141,8 +173,14 @@ export async function restoreImportSnapshot(userId: string, snapshotId: string) 
   const db = getDatabase();
   const restored = await db.transaction(async (tx) => {
     const [snapshot] = await tx
-      .select({ semesterId: importSnapshots.semesterId, payload: importSnapshots.payload, createdAt: importSnapshots.createdAt })
+      .select({
+        semesterId: importSnapshots.semesterId,
+        payload: importSnapshots.payload,
+        createdAt: importSnapshots.createdAt,
+        scheduleId: semesters.scheduleId,
+      })
       .from(importSnapshots)
+      .innerJoin(semesters, eq(importSnapshots.semesterId, semesters.id))
       .where(and(eq(importSnapshots.id, snapshotId), eq(importSnapshots.userId, userId)))
       .limit(1);
     if (!snapshot) throw new HttpError(404, "恢复点不存在或已过期");
@@ -182,7 +220,13 @@ export async function restoreImportSnapshot(userId: string, snapshotId: string) 
         skipCount += skipValues.length;
       }
     }
-    return { semesterId: snapshot.semesterId, courseCount: snapshot.payload.courses.length, meetingCount, skipCount };
+    const targetScheduleId = snapshot.scheduleId ?? "pku";
+    const [updatedUser] = await tx.update(users)
+      .set({ scheduleId: targetScheduleId, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id });
+    if (!updatedUser) throw new Error("Import snapshot user does not exist");
+    return { semesterId: snapshot.semesterId, courseCount: snapshot.payload.courses.length, meetingCount, skipCount, targetScheduleId };
   });
   return restored;
 }

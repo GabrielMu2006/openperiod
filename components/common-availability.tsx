@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowRight, ArrowsHorizontal, CaretLeft, CaretRight, Check, Circle, Question, X } from "@phosphor-icons/react";
 import { AppShell } from "@/components/app-shell";
 import { useDialogBehavior } from "@/components/dialog-behavior";
+import { LoadingState } from "@/components/loading-state";
 import { ThemedSelect } from "@/components/themed-select";
-import { getScheduleById, getScheduleForSemester, periodRangeIn, periodRangeMinutesIn } from "@/src/config/school-schedules";
-import { buildFreeRuns, formatDuration, type FreeRun } from "@/src/domain/free-runs";
+import { getScheduleById, getScheduleForSemester, periodRangeMinutesIn } from "@/src/config/school-schedules";
+import { buildFreeRuns, formatClock, formatDuration } from "@/src/domain/free-runs";
 import { WEEKDAYS, type AvailabilitySlot, type Weekday } from "@/src/domain/schedule";
 
 const weekdayLabels: Record<Weekday, string> = {
@@ -21,17 +23,28 @@ interface GroupDTO {
   role: "OWNER" | "MEMBER";
   privacyLevel: 0 | 1 | 2 | null;
   semester: { academicYear: string; semester: string; currentWeek: number; weekCount: number; startDate: string; timezone: string; scheduleId?: string | null; schedule?: { rows: { start: string; end: string }[] } };
-  members: { id: string; nickname: string; courseCount: number; scheduleId?: string | null }[];
+  members: { id: string; nickname: string; courseCount: number; scheduleId?: string | null; scheduleState?: "recorded" | "confirmedEmpty" | "unrecorded" }[];
+}
+
+interface GridRowDTO {
+  period: number;
+  label: string;
+  timeText: string;
+  startMin: number;
+  endMin: number;
 }
 
 interface GridResponse {
   week: number;
   selectedUsers: number;
-  gridRows: { period: number; label: string; timeText: string; startMin: number; endMin: number }[];
-  slots: Record<Weekday, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number }>>;
+  unknownCount: number;
+  gridRows: GridRowDTO[];
+  slots: Record<Weekday, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number; unknownCount: number }>>;
+  freeIntervals: Record<Weekday, { startMin: number; endMin: number }[]>;
 }
 
-type SelectedSlot = { weekday: Weekday; period: number; slot: AvailabilitySlot };
+type SlotDetailResponse = AvailabilitySlot & { gridRow: GridRowDTO };
+type SelectedSlot = { weekday: Weekday; period: number; slot: SlotDetailResponse };
 
 function Logo() {
   return <span className="logo-mark" aria-hidden="true"><i /><i /></span>;
@@ -70,21 +83,17 @@ function longDateLabel(startDate: string, week: number, weekdayIndex: number) {
   return date ? `${date.getUTCMonth() + 1}月${date.getUTCDate()}日` : "";
 }
 
-// 毛玻璃材质 · 按有空人数占比连续渐变：0 人=珊瑚红 → 半数=黄绿 → 全员=饱满薄荷绿
-// 有空的人越多，颜色越绿、越深、越实，一眼读出「这一格有多好约」
+// 按有空人数占比连续着色：0 人=珊瑚红 → 半数=黄绿 → 全员=薄荷绿。
+// 所有比例统一使用深色文字；在最亮的绿色端也保留充足对比度。
 function slotHeatStyle(pct: number) {
   const p = Math.min(1, Math.max(0, pct));
   const hue = Math.round(16 + (158 - 16) * p);
   const sat = Math.round(68 + 8 * p);
   const light = Math.round(56 - 10 * p);
   const alpha = 0.4 + 0.45 * p;
-  const glass = (a: number) => `hsla(${hue}, ${sat}%, ${light}%, ${a.toFixed(2)})`;
   return {
-    backgroundImage: `linear-gradient(180deg, ${glass(alpha + 0.08)} 0%, ${glass(alpha)} 100%)`,
-    color: p >= 0.75 ? "rgba(255, 255, 255, 0.96)" : "var(--text-primary)",
-    backdropFilter: "blur(14px) saturate(1.6)",
-    WebkitBackdropFilter: "blur(14px) saturate(1.6)",
-    boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45)",
+    backgroundColor: `hsla(${hue}, ${sat}%, ${light}%, ${Math.min(0.9, alpha + 0.04).toFixed(2)})`,
+    color: "var(--text-primary)",
   };
 }
 
@@ -122,6 +131,7 @@ export function CommonAvailability() {
   const [week, setWeek] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [grid, setGrid] = useState<GridResponse | null>(null);
+  const [gridLoading, setGridLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
   const [loadingDetail, setLoadingDetail] = useState("");
   const [error, setError] = useState("");
@@ -132,10 +142,17 @@ export function CommonAvailability() {
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const gridRef = useRef<HTMLDivElement>(null);
+  const gridRequestRef = useRef(0);
+  const gridGroupRef = useRef("");
   const [runFilters, setRunFilters] = useState<{ weekdays: Weekday[]; minMinutes: number; daypart: "all" | "day" | "evening" }>({
     weekdays: [...WEEKDAYS], minMinutes: 0, daypart: "all",
   });
   const detailRef = useDialogBehavior(selectedSlot !== null, () => setSelectedSlot(null));
+
+  // 桌面保留周总览；手机首屏直接进入按天视图，用户仍可手动切换。
+  useEffect(() => {
+    if (window.innerWidth <= 639) setViewMode("day");
+  }, []);
 
   const activeGroup = useMemo(
     () => groups?.find((group) => group.id === activeGroupId) ?? null,
@@ -198,22 +215,32 @@ export function CommonAvailability() {
 
   useEffect(() => {
     if (!activeGroup || selectedIds.length === 0) {
+      gridRequestRef.current += 1;
       setGrid(null);
+      setGridLoading(false);
       return;
     }
     const controller = new AbortController();
-    setGrid(null);
+    const requestId = ++gridRequestRef.current;
+    if (gridGroupRef.current && gridGroupRef.current !== activeGroup.id) setGrid(null);
+    gridGroupRef.current = activeGroup.id;
+    setGridLoading(true);
     setError("");
     const query = new URLSearchParams({ week: String(week), users: selectedIds.join(",") });
     fetch(`/api/groups/${activeGroup.id}/availability?${query}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("暂时无法计算共同空闲");
-        setGrid((await response.json()) as GridResponse);
+        const nextGrid = (await response.json()) as GridResponse;
+        if (requestId === gridRequestRef.current) setGrid(nextGrid);
       })
       .catch((cause) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
+        if (requestId !== gridRequestRef.current) return;
         setGrid(null);
         setError(cause instanceof Error ? cause.message : "暂时无法计算共同空闲");
+      })
+      .finally(() => {
+        if (requestId === gridRequestRef.current) setGridLoading(false);
       });
     return () => controller.abort();
   }, [activeGroup, selectedIds, week, reloadKey]);
@@ -231,7 +258,7 @@ export function CommonAvailability() {
     if (event.key === "ArrowLeft") w = Math.max(0, w - 1);
     if (event.key === "ArrowRight") w = Math.min(WEEKDAYS.length - 1, w + 1);
     if (event.key === "ArrowUp") p = Math.max(1, p - 1);
-    if (event.key === "ArrowDown") p = Math.min(12, p + 1);
+    if (event.key === "ArrowDown") p = Math.min(gridRows.length, p + 1);
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-wdi="${w}"][data-period="${p}"]`)?.focus();
   }
 
@@ -257,7 +284,7 @@ export function CommonAvailability() {
     try {
       const response = await fetch(`/api/groups/${activeGroup.id}/availability/details?${query}`);
       if (!response.ok) throw new Error("暂时无法读取时段详情");
-      setSelectedSlot({ weekday, period, slot: (await response.json()) as AvailabilitySlot });
+      setSelectedSlot({ weekday, period, slot: (await response.json()) as SlotDetailResponse });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "暂时无法读取时段详情");
     } finally {
@@ -275,15 +302,27 @@ export function CommonAvailability() {
   const noGroups = groups !== null && groups.length === 0 && !error;
   const members = activeGroup?.members ?? [];
   const selectedMembers = members.filter((member) => selectedIds.includes(member.id));
-  const unrecordedCount = selectedMembers.filter((member) => member.courseCount === 0).length;
+  // 完整度状态由服务端按成员自己学校的学期判定（AV-04）；旧响应无该字段时回落课程数
+  const memberState = (member: typeof members[number]) =>
+    member.scheduleState ?? (member.courseCount === 0 ? "unrecorded" : "recorded");
+  const unrecordedCount = selectedMembers.filter((member) => memberState(member) === "unrecorded").length;
   const isCurrentWeekView = activeGroup !== null && week === activeGroup.semester.currentWeek;
   const todayIndex = activeGroup && isCurrentWeekView ? weekdayIndexNowIn(activeGroup.semester.timezone) : -1;
   const activeDayIdx = dayIndex ?? (todayIndex >= 0 ? todayIndex : 0);
   const schedule = activeGroup?.semester.schedule ?? getScheduleForSemester(activeGroup?.semester);
-  // 矩阵网格：服务端统一为北大 12 行 + 超出范围的钟点行；无数据时回落本校作息
+  // 矩阵、按天、详情和复制统一使用服务端返回的群组钟点网格；加载时回落群组作息。
   const gridRows = grid?.gridRows?.length
     ? grid.gridRows
-    : schedule.rows.map((row, index) => ({ period: index + 1, label: "第 " + (index + 1) + " 节", timeText: row.start + "–" + row.end, startMin: 0, endMin: 0 }));
+    : schedule.rows.map((row, index) => {
+      const range = periodRangeMinutesIn(schedule, index + 1, index + 1);
+      return {
+        period: index + 1,
+        label: "群组第 " + (index + 1) + " 节",
+        timeText: row.start + "–" + row.end,
+        startMin: range?.startMin ?? 0,
+        endMin: range?.endMin ?? 0,
+      };
+    });
   const nowMinutes = useMemo(
     () => (activeGroup ? minutesNowIn(activeGroup.semester.timezone) : 0),
     [activeGroup, grid],
@@ -302,54 +341,53 @@ export function CommonAvailability() {
     const loading = !info;
     const past = periodIsPast(weekday, period);
     const key = `${weekday}-${period}`;
+    const detailLoading = loadingDetail === key;
     const pct = info && info.selectedUsers > 0 ? info.freeCount / info.selectedUsers : 0;
     const range = gridRows[period - 1]?.timeText ?? "";
     const timeText = range;
+    const unknown = info?.unknownCount ?? 0;
     const stateText = loading
       ? "正在计算"
       : pct === 1
         ? "所有人共同空闲"
-        : pct === 0
+        : pct === 0 && unknown === 0
           ? "没人有空"
-          : `${info!.selectedUsers} 人中 ${info!.freeCount} 人有空`;
+          : `${info!.selectedUsers} 人中 ${info!.freeCount} 人有空${unknown ? `，另有 ${unknown} 人待确认` : ""}`;
     const ariaLabel = `周${weekdayLabels[weekday]}${dateLabel(activeGroup!.semester.startDate, week, weekdayIndex)} ${timeText}，${past ? "已过去，" : ""}${stateText}`;
     return <button
       type="button"
       key={key}
-      className={`slot${loading ? " slot-loading" : ""}${past ? " past" : ""}${extraClass}`}
+      className={`slot${loading ? " slot-loading" : ""}${detailLoading ? " detail-loading" : ""}${past ? " past" : ""}${extraClass}`}
       style={loading ? undefined : slotHeatStyle(pct)}
       data-wdi={weekdayIndex}
       data-period={period}
-      aria-label={ariaLabel}
-      disabled={loading}
+      aria-label={`${ariaLabel}${detailLoading ? "，正在读取详情" : ""}`}
+      aria-busy={detailLoading}
+      disabled={loading || detailLoading}
       onClick={() => openDetails(weekday, period)}
     >
       {loading
         ? <span>…</span>
-        : pct === 1
-          ? <span aria-hidden="true">✓</span>
-          : pct === 0
-            ? <i aria-hidden="true" className="none-mark" />
-            : <span className="partial-count" aria-hidden="true">{info!.freeCount}/{info!.selectedUsers}</span>}
+        : <span className="slot-count" aria-hidden="true">
+          {info!.freeCount}/{info!.selectedUsers}
+          {pct === 1 && <b><Check className="ui-icon" weight="bold" /></b>}
+        </span>}
     </button>;
   }
 
   const freeRuns = useMemo(() => {
     if (!grid) return [];
-    return buildFreeRuns(grid.slots, periodIsPast, gridRows.length);
-  }, [grid, periodIsPast, schedule, gridRows]);
+    // 空档直接来自服务端的钟点轴共同空闲区间；今天已完全过去的区间不再推荐
+    const today = todayIndex >= 0 ? WEEKDAYS[todayIndex] : null;
+    return buildFreeRuns(grid.freeIntervals, (weekday, run) => weekday === today && run.endMin <= nowMinutes);
+  }, [grid, todayIndex, nowMinutes]);
 
   const visibleRuns = useMemo(() => freeRuns.filter((run) => {
     if (!runFilters.weekdays.includes(run.weekday)) return false;
-    const range = {
-      startMin: gridRows[run.startPeriod - 1]?.startMin ?? 0,
-      endMin: gridRows[run.endPeriod - 1]?.endMin ?? 0,
-    };
-    if (!range) return false;
-    if (runFilters.daypart === "day" && range.startMin >= 18 * 60) return false;
-    if (runFilters.daypart === "evening" && range.startMin < 18 * 60) return false;
-    return range.endMin - range.startMin >= runFilters.minMinutes;
-  }), [freeRuns, runFilters, schedule]);
+    if (runFilters.daypart === "day" && run.startMin >= 18 * 60) return false;
+    if (runFilters.daypart === "evening" && run.startMin < 18 * 60) return false;
+    return run.endMin - run.startMin >= runFilters.minMinutes;
+  }), [freeRuns, runFilters]);
 
   function toggleRunWeekday(day: Weekday) {
     setRunFilters((current) => {
@@ -359,7 +397,8 @@ export function CommonAvailability() {
     });
   }
 
-  const slotDetailRange = selectedSlot ? gridRows[selectedSlot.period - 1]?.timeText ?? "" : "";
+  const slotDetailRow = selectedSlot ? selectedSlot.slot.gridRow ?? gridRows[selectedSlot.period - 1] : null;
+  const slotDetailRange = slotDetailRow?.timeText ?? "";
   const slotDetailWeekdayIndex = selectedSlot ? WEEKDAYS.indexOf(selectedSlot.weekday) : -1;
 
   return (
@@ -372,7 +411,7 @@ export function CommonAvailability() {
       {error && <div className="page-error" role="alert">{error}<button type="button" onClick={retry}>重试</button></div>}
 
       {groups === null ? (
-        <section className="workspace loading-panel" aria-label="正在加载"><div className="loading-line" /><div className="loading-line short" /></section>
+        <section className="workspace loading-panel" aria-label="正在加载"><LoadingState label="正在加载群组与共同空闲…" /></section>
       ) : noGroups ? (
         <section className="workspace empty-state"><Logo /><h2>还没有群组</h2><p>创建一个群组，或者输入朋友发来的邀请码。</p><div className="empty-actions"><a className="primary-action" href="/groups/new">创建群组</a><a href="/join">加入群组</a></div></section>
       ) : activeGroup ? (
@@ -380,38 +419,90 @@ export function CommonAvailability() {
           <div className="controls">
             <label className="group-control"><span>群组</span><ThemedSelect value={activeGroup.id} ariaLabel="选择群组" groups={[{ options: groups.map((group) => ({ value: group.id, label: `${group.name} · ${group.members.length} 人` })) }]} onChange={changeGroup} /></label>
             <div className="week-control" aria-label="教学周"><span>教学周</span><div>
-              <button type="button" disabled={week === 1} onClick={() => setWeek((value) => Math.max(1, value - 1))} aria-label="上一周">‹</button>
+              <button type="button" className="icon-button" disabled={week === 1} onClick={() => setWeek((value) => Math.max(1, value - 1))} aria-label="上一周"><CaretLeft className="ui-icon" weight="bold" /></button>
               <ThemedSelect className="week-select" value={String(week)} ariaLabel="选择教学周" groups={[{ options: Array.from({ length: activeGroup.semester.weekCount }, (_, index) => index + 1).map((value) => ({ value: String(value), label: `第 ${value} 周${value === activeGroup.semester.currentWeek ? "（本周）" : ""}` })) }]} onChange={(next) => setWeek(Number(next))} />
-              <button type="button" disabled={week === activeGroup.semester.weekCount} onClick={() => setWeek((value) => Math.min(activeGroup.semester.weekCount, value + 1))} aria-label="下一周">›</button>
+              <button type="button" className="icon-button" disabled={week === activeGroup.semester.weekCount} onClick={() => setWeek((value) => Math.min(activeGroup.semester.weekCount, value + 1))} aria-label="下一周"><CaretRight className="ui-icon" weight="bold" /></button>
               {week !== activeGroup.semester.currentWeek && <button type="button" className="back-to-now" onClick={() => setWeek(activeGroup.semester.currentWeek)}>回到本周</button>}
-            </div></div>
-            <div className="mode-control" role="group" aria-label="查看模式"><span>模式</span><div className="mode-toggle">
-              <button type="button" className={viewMode === "week" ? "on" : ""} aria-pressed={viewMode === "week"} onClick={() => setViewMode("week")}>周总览</button>
-              <button type="button" className={viewMode === "day" ? "on" : ""} aria-pressed={viewMode === "day"} onClick={() => setViewMode("day")}>按天</button>
             </div></div>
           </div>
 
-          <div className="member-bar"><div><strong>参与成员</strong><span>已选择 {selectedIds.length} / {members.length} 人</span></div><div className="member-chips"><button type="button" className={selectedIds.length === members.length ? "selected" : ""} onClick={() => setSelectedIds(selectedIds.length === members.length ? [] : members.map((member) => member.id))}>{selectedIds.length === members.length ? "取消全选" : "全选"}</button>{(members.length > 6 && !membersExpanded ? members.slice(0, 5) : members).map((member) => { const selected = selectedIds.includes(member.id); return <button type="button" className={selected ? "selected" : ""} aria-pressed={selected} title={member.courseCount === 0 ? "该成员尚未录入课表，按全天空闲计算" : undefined} onClick={() => toggleMember(member.id)} key={member.id}>{selected && <span>✓</span>}{member.nickname}{member.scheduleId && member.scheduleId !== "pku" && <em className="chip-flag">{getScheduleById(member.scheduleId).school}</em>}{member.courseCount === 0 && <em className="chip-flag">未录</em>}</button>; })}{members.length > 6 && <button type="button" className="members-toggle" aria-expanded={membersExpanded} onClick={() => setMembersExpanded((value) => !value)}>{membersExpanded ? "收起" : `全部 ${members.length} 人`}</button>}</div></div>
+          <div className="member-bar"><div><strong>参与成员</strong><span>已选择 {selectedIds.length} / {members.length} 人</span></div><div className="member-chips"><button type="button" className={selectedIds.length === members.length ? "selected" : ""} onClick={() => setSelectedIds(selectedIds.length === members.length ? [] : members.map((member) => member.id))}>{selectedIds.length === members.length ? "取消全选" : "全选"}</button>{(members.length > 6 && !membersExpanded ? members.slice(0, 5) : members).map((member) => { const selected = selectedIds.includes(member.id); const state = memberState(member); return <button type="button" className={selected ? "selected" : ""} aria-pressed={selected} title={state === "unrecorded" ? "该成员尚未录入课表，TA 的有空状态待确认" : state === "confirmedEmpty" ? "该成员已确认本学期无课，按有空参与" : undefined} onClick={() => toggleMember(member.id)} key={member.id}>{selected && <span><Check className="ui-icon" weight="bold" /></span>}{member.nickname}{member.scheduleId && member.scheduleId !== "pku" && <em className="chip-flag">{getScheduleById(member.scheduleId).school}</em>}{state === "unrecorded" && <em className="chip-flag">未录</em>}{state === "confirmedEmpty" && <em className="chip-flag">无课</em>}</button>; })}{members.length > 6 && <button type="button" className="members-toggle" aria-expanded={membersExpanded} onClick={() => setMembersExpanded((value) => !value)}>{membersExpanded ? "收起" : `全部 ${members.length} 人`}</button>}</div></div>
 
-          {selectedIds.length === 0 ? <div className="empty-state"><Logo /><h2>请选择至少一位成员</h2><p>选择成员后，这里会立即显示共同空闲。</p></div> : (
-            <div className="timetable-wrap">
-              <div className="legend"><span className="ramp" aria-hidden="true"><i className="ramp-bar" /><em>没人有空</em><em>→</em><em>全部有空</em></span><small>颜色越绿代表有空的人越多 · 点击格子查看成员状态</small></div>
+          {selectedIds.length === 0 ? <div className="empty-state"><Logo /><h2>请选择至少一位成员</h2><p>选择成员后，这里会立即显示共同空闲。</p></div> : <div className={`availability-results${gridLoading ? " is-updating" : ""}`} aria-busy={gridLoading}>
+            {gridLoading && <div className="update-status" role="status" aria-live="polite" aria-atomic="true"><span className="update-status-track" aria-hidden="true"><i /></span>正在更新共同空闲…</div>}
+            {grid && (
+              <section className="free-runs" aria-labelledby="free-runs-title">
+                <div className="free-runs-head">
+                  <div className="free-runs-heading">
+                    <div><h2 id="free-runs-title">推荐空档</h2><p>从本周结果中整理，可直接筛选并复制时间。</p></div>
+                    <span>{visibleRuns.length} 段</span>
+                    {grid.unknownCount > 0 && <small className="runs-caveat">基于已录入成员计算，另有 {grid.unknownCount} 人待确认</small>}
+                  </div>
+                  <div className="free-runs-filters">
+                    <div className="run-day-chips" role="group" aria-label="按星期筛选">
+                      {WEEKDAYS.map((day) => {
+                        const on = runFilters.weekdays.includes(day);
+                        return <button type="button" key={day} className={on ? "on" : ""} aria-pressed={on} onClick={() => toggleRunWeekday(day)}>周{weekdayLabels[day]}</button>;
+                      })}
+                    </div>
+                    <ThemedSelect className="run-min" value={String(runFilters.minMinutes)} ariaLabel="最短时长" groups={[{ options: MIN_MINUTES_OPTIONS.map((minutes) => ({ value: String(minutes), label: minutes === 0 ? "任意时长" : `≥ ${minutes} 分钟` })) }]} onChange={(next) => setRunFilters((current) => ({ ...current, minMinutes: Number(next) }))} />
+                    <ThemedSelect className="run-daypart" value={runFilters.daypart} ariaLabel="白天或晚间" groups={[{ options: [{ value: "all", label: "全天" }, { value: "day", label: "白天（18 点前开始）" }, { value: "evening", label: "晚间（18 点后开始）" }] }]} onChange={(next) => setRunFilters((current) => ({ ...current, daypart: next as "all" | "day" | "evening" }))} />
+                  </div>
+                </div>
+                {visibleRuns.length === 0 ? (
+                  <p className="runs-empty">这一周没有符合筛选条件的共同空档。</p>
+                ) : (
+                  <ul className="free-run-list">
+                    {visibleRuns.map((run) => {
+                      const weekdayIndex = WEEKDAYS.indexOf(run.weekday);
+                      const range = `${formatClock(run.startMin)}–${formatClock(run.endMin)}`;
+                      // 两端恰好对齐服务端网格时提示对齐；所有展示、筛选与复制仍以实际钟点为准。
+                      const startRow = gridRows.find((row) => row.startMin === run.startMin);
+                      const endRow = gridRows.find((row) => row.endMin === run.endMin);
+                      const runKey = `${run.weekday}-${run.startMin}`;
+                      const claim = grid.unknownCount > 0
+                        ? `已录入成员都有空（另有 ${grid.unknownCount} 人待确认）`
+                        : "大家都有空";
+                      const copyLabel = `${longDateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周${weekdayLabels[run.weekday]}）${range} ${claim} · 来自课隙 OpenPeriod`;
+                      return <li key={runKey}>
+                        <div className="run-date"><strong>{dateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周{weekdayLabels[run.weekday]}）</strong><small>{startRow && endRow ? "与显示网格对齐" : "按实际钟点"}</small></div>
+                        <div className="run-time"><span>{range}</span><em>{formatDuration(run.endMin - run.startMin)}</em></div>
+                        <button type="button" className="run-copy" onClick={() => copyRunText(runKey, copyLabel)}>{copiedKey === runKey && <Check className="ui-icon" weight="bold" />} {copiedKey === runKey ? "已复制" : "复制时间"}</button>
+                      </li>;
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            <section className="timetable-wrap" aria-labelledby="availability-matrix-title">
+              <div className="matrix-head">
+                <div className="matrix-heading"><h2 id="availability-matrix-title">整周分布</h2><p>比较其他时段，点击任一格查看成员状态。</p></div>
+                <div className="mode-control" role="group" aria-label="查看模式"><span>查看方式</span><div className="mode-toggle">
+                  <button type="button" className={viewMode === "week" ? "on" : ""} aria-pressed={viewMode === "week"} onClick={() => setViewMode("week")}>周总览</button>
+                  <button type="button" className={viewMode === "day" ? "on" : ""} aria-pressed={viewMode === "day"} onClick={() => setViewMode("day")}>按天</button>
+                </div></div>
+              </div>
+              <div className="legend"><span className="ramp" aria-hidden="true"><i className="ramp-bar" /><em>没人有空</em><ArrowRight className="ui-icon" weight="bold" /><em>全部有空</em></span><small>颜色表示空闲比例，格内显示人数</small></div>
               {viewMode === "week" ? (
                 <div className="grid-scroller" onScroll={(event) => { if (swipeHintVisible && event.currentTarget.scrollLeft > 12) setSwipeHintVisible(false); }}>
                   <div className="timetable-grid" ref={gridRef} onKeyDown={onGridKeyDown}>
-                    <div className="corner">节次</div>
+                    <div className="corner">时间</div>
                     {WEEKDAYS.map((day, index) => (
                       <div className={`day-heading${index === todayIndex ? " today" : ""}`} key={day}>
                         <strong>周{weekdayLabels[day]}</strong>
                         <small>{dateLabel(activeGroup.semester.startDate, week, index)}{index === todayIndex && " · 今天"}</small>
                       </div>
                     ))}
-                    {gridRows.map((row) => [
-                      <div className="period" key={"period-" + row.period}><strong>{row.period}</strong><small className="period-time">{row.timeText.split("–")[0]}</small></div>,
-                      ...WEEKDAYS.map((weekday, weekdayIndex) => renderSlotButton(weekday, weekdayIndex, row.period)),
-                    ])}
+                    {gridRows.map((row) => {
+                      const [start, end] = row.timeText.split("–");
+                      return [
+                        <div className="period" key={"period-" + row.period}><strong>{start}</strong><small className="period-time">–{end}</small></div>,
+                        ...WEEKDAYS.map((weekday, weekdayIndex) => renderSlotButton(weekday, weekdayIndex, row.period)),
+                      ];
+                    })}
                   </div>
-                  <span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true">← 表格可左右滑动 →</span>
+                  <span className={`swipe-hint${swipeHintVisible ? "" : " gone"}`} aria-hidden="true"><ArrowsHorizontal className="ui-icon" weight="bold" />表格可左右滑动</span>
                 </div>
               ) : (
                 <div className="day-view">
@@ -426,62 +517,33 @@ export function CommonAvailability() {
                     {gridRows.map((gridRow) => {
                       const period = gridRow.period;
                       const weekday = WEEKDAYS[activeDayIdx];
-                      const range = periodRangeIn(schedule, period, period);
                       return <li key={period}>
-                        <div className="day-slot-time"><strong>第 {period} 节</strong><small>{range ? `${range.start}–${range.end}` : ""}</small></div>
+                        <div className="day-slot-time"><strong>{gridRow.timeText}</strong><small>{gridRow.label || "钟点时段"}</small></div>
                         {renderSlotButton(weekday, activeDayIdx, period, " day-slot")}
                       </li>;
                     })}
                   </ul>
                 </div>
               )}
-              {grid && unrecordedCount > 0 && <p className="completeness-note">注意：{unrecordedCount} 位所选成员尚未录入课表，TA 们按全天空闲计算，结果可能偏乐观。</p>}
-            </div>
-          )}
-
-          {grid && selectedIds.length > 0 && (
-            <section className="free-runs" aria-label="连续共同空档">
-              <div className="free-runs-head">
-                <strong>连续空档</strong><span>{visibleRuns.length} 段</span>
-                <div className="free-runs-filters">
-                  <div className="run-day-chips" role="group" aria-label="按星期筛选">
-                    {WEEKDAYS.map((day) => {
-                      const on = runFilters.weekdays.includes(day);
-                      return <button type="button" key={day} className={on ? "on" : ""} aria-pressed={on} onClick={() => toggleRunWeekday(day)}>周{weekdayLabels[day]}</button>;
-                    })}
-                  </div>
-                  <ThemedSelect className="run-min" value={String(runFilters.minMinutes)} ariaLabel="最短时长" groups={[{ options: MIN_MINUTES_OPTIONS.map((minutes) => ({ value: String(minutes), label: minutes === 0 ? "任意时长" : `≥ ${minutes} 分钟` })) }]} onChange={(next) => setRunFilters((current) => ({ ...current, minMinutes: Number(next) }))} />
-                  <ThemedSelect className="run-daypart" value={runFilters.daypart} ariaLabel="白天或晚间" groups={[{ options: [{ value: "all", label: "全天" }, { value: "day", label: "白天（18 点前开始）" }, { value: "evening", label: "晚间（18 点后开始）" }] }]} onChange={(next) => setRunFilters((current) => ({ ...current, daypart: next as "all" | "day" | "evening" }))} />
-                </div>
-              </div>
-              {visibleRuns.length === 0 ? (
-                <p className="runs-empty">这一周没有符合筛选条件的共同空档。</p>
-              ) : (
-                <ul className="free-run-list">
-                  {visibleRuns.map((run) => {
-                    const weekdayIndex = WEEKDAYS.indexOf(run.weekday);
-                    const startRow = gridRows[run.startPeriod - 1];
-                    const endRow = gridRows[run.endPeriod - 1];
-                    const range = startRow && endRow ? { start: startRow.timeText.split("–")[0], end: endRow.timeText.split("–")[1] } : null;
-                    const minutes = startRow && endRow ? { startMin: startRow.startMin, endMin: endRow.endMin } : null;
-                    const runKey = `${run.weekday}-${run.startPeriod}`;
-                    const copyLabel = `${longDateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周${weekdayLabels[run.weekday]}）${range ? `${range.start}–${range.end}` : ""} 大家都有空 · 来自课隙 OpenPeriod`;
-                    return <li key={runKey}>
-                      <strong>{dateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周{weekdayLabels[run.weekday]}）</strong>
-                      <span>{range ? `${range.start}–${range.end}` : ""}</span>
-                      <small>第 {run.startPeriod}–{run.endPeriod} 节</small>
-                      <em>{minutes ? formatDuration(minutes.endMin - minutes.startMin) : ""}</em>
-                      <button type="button" className="run-copy" onClick={() => copyRunText(runKey, copyLabel)}>{copiedKey === runKey ? "已复制 ✓" : "复制"}</button>
-                    </li>;
-                  })}
-                </ul>
-              )}
+              {grid && unrecordedCount > 0 && <p className="completeness-note">注意：{unrecordedCount} 位所选成员尚未录入课表且未确认无课，TA 们不计入「大家都有空」，相关时段按「待确认」标注。</p>}
             </section>
-          )}
+          </div>}
         </section>
       ) : null}
 
-      {selectedSlot && <div className="detail-backdrop" role="presentation" onMouseDown={() => setSelectedSlot(null)}><section ref={detailRef} tabIndex={-1} className="slot-detail" role="dialog" aria-modal="true" aria-labelledby="slot-title" onMouseDown={(event) => event.stopPropagation()}><button className="detail-close" type="button" onClick={() => setSelectedSlot(null)} aria-label="关闭">×</button><p className="eyebrow">SLOT DETAIL</p><h2 id="slot-title">周{weekdayLabels[selectedSlot.weekday]} · 第 {selectedSlot.period} 节</h2>{slotDetailRange && activeGroup && <p className="detail-meta">{longDateLabel(activeGroup.semester.startDate, week, slotDetailWeekdayIndex)}（周{weekdayLabels[selectedSlot.weekday]}）{slotDetailRange}</p>}<div className={selectedSlot.slot.commonFree ? "detail-summary free" : "detail-summary"}><strong>{selectedSlot.slot.freeCount} / {selectedSlot.slot.selectedUsers}</strong><span>{selectedSlot.slot.commonFree ? "全部有空" : "人有空"}</span></div>{unrecordedCount > 0 && <p className="detail-note">注意：{unrecordedCount} 位所选成员尚未录入课表，TA 们按全天空闲计算。</p>}<ul>{selectedSlot.slot.details.map((detail) => <li key={detail.userId}><span className={detail.free ? "status-free" : "status-busy"}>{detail.free ? "✓" : "●"}</span><strong>{detail.nickname}</strong><small>{detail.free ? "空闲" : detail.label}</small></li>)}</ul><div className="detail-actions"><button type="button" className="copy-time" onClick={() => copyRunText(`detail-${selectedSlot.weekday}-${selectedSlot.period}`, `${longDateLabel(activeGroup!.semester.startDate, week, slotDetailWeekdayIndex)}（周${weekdayLabels[selectedSlot.weekday]}）${slotDetailRange}，${selectedSlot.slot.freeCount}/${selectedSlot.slot.selectedUsers} 人有空 · 来自课隙 OpenPeriod`)}>{copiedKey === `detail-${selectedSlot.weekday}-${selectedSlot.period}` ? "已复制 ✓" : "复制时间信息"}</button></div><p className="privacy-hint">私人忙碌标题与“本周不去”状态不会对其他成员公开。</p></section></div>}
+      {selectedSlot && <div className="detail-backdrop" role="presentation" onMouseDown={() => setSelectedSlot(null)}>
+        <section ref={detailRef} tabIndex={-1} className="slot-detail" role="dialog" aria-modal="true" aria-labelledby="slot-title" onMouseDown={(event) => event.stopPropagation()}>
+          <button className="detail-close icon-button" type="button" onClick={() => setSelectedSlot(null)} aria-label="关闭"><X className="ui-icon" weight="bold" /></button>
+          <p className="eyebrow">SLOT DETAIL</p>
+          <h2 id="slot-title">周{weekdayLabels[selectedSlot.weekday]} · {slotDetailRange || "钟点时段"}</h2>
+          {activeGroup && <p className="detail-meta">{longDateLabel(activeGroup.semester.startDate, week, slotDetailWeekdayIndex)}（周{weekdayLabels[selectedSlot.weekday]}）{slotDetailRow?.label ? ` · ${slotDetailRow.label}` : ""}</p>}
+          <div className={selectedSlot.slot.commonFree ? "detail-summary free" : "detail-summary"}><strong>{selectedSlot.slot.freeCount} / {selectedSlot.slot.selectedUsers}</strong><span>{selectedSlot.slot.commonFree ? "全部有空" : `人有空${selectedSlot.slot.unknownCount ? ` · 另有 ${selectedSlot.slot.unknownCount} 人待确认` : ""}`}</span></div>
+          {unrecordedCount > 0 && <p className="detail-note">注意：{unrecordedCount} 位所选成员尚未录入课表且未确认无课，TA 们不计入有空结论。</p>}
+          <ul>{selectedSlot.slot.details.map((detail) => <li key={detail.userId}><span className={detail.unknown ? "status-unknown" : detail.free ? "status-free" : "status-busy"}>{detail.unknown ? <Question className="ui-icon" weight="bold" /> : detail.free ? <Check className="ui-icon" weight="bold" /> : <Circle className="ui-icon" weight="fill" />}</span><strong>{detail.nickname}</strong><small>{detail.unknown ? "课表待确认" : detail.free ? "空闲" : detail.label}</small></li>)}</ul>
+          <div className="detail-actions"><button type="button" className="copy-time" onClick={() => copyRunText(`detail-${selectedSlot.weekday}-${selectedSlot.period}`, `${longDateLabel(activeGroup!.semester.startDate, week, slotDetailWeekdayIndex)}（周${weekdayLabels[selectedSlot.weekday]}）${slotDetailRange}，${selectedSlot.slot.freeCount}/${selectedSlot.slot.selectedUsers} 人有空${selectedSlot.slot.unknownCount ? `（另有 ${selectedSlot.slot.unknownCount} 人待确认）` : ""} · 来自课隙 OpenPeriod`)}>{copiedKey === `detail-${selectedSlot.weekday}-${selectedSlot.period}` && <Check className="ui-icon" weight="bold" />} {copiedKey === `detail-${selectedSlot.weekday}-${selectedSlot.period}` ? "已复制" : "复制时间信息"}</button></div>
+          <p className="privacy-hint">私人忙碌标题与“本周不去”状态不会对其他成员公开。</p>
+        </section>
+      </div>}
     </AppShell>
   );
 }

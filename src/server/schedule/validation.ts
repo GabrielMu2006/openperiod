@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { WEEKDAYS } from "@/src/domain/schedule";
 
-const weeksSchema = z.array(z.number().int().min(1).max(16)).min(1).max(16)
+// 学期周数的静态硬上限与数据库约束一致（semesters.week_count ≤ 52）；
+// 目标学期的实际周数校验在数据层按 semester.weekCount 进行（SCH-02）
+const WEEK_CAP = 52;
+
+const weeksSchema = z.array(z.number().int().min(1).max(WEEK_CAP)).min(1).max(WEEK_CAP)
   .transform((weeks) => [...new Set(weeks)].sort((a, b) => a - b));
 
 const meetingSchema = z.object({
@@ -22,13 +26,13 @@ export const courseMutationSchema = z.object({
 });
 
 export const skipMutationSchema = z.object({
-  week: z.number().int().min(1).max(16),
+  week: z.number().int().min(1).max(WEEK_CAP),
   skipped: z.boolean(),
 });
 
 // 批量「不去」：一次提交整学期的目标周次集合（替换式生效）
 export const batchSkipSchema = z.object({
-  weeks: z.array(z.number().int().min(1).max(16)).max(16)
+  weeks: z.array(z.number().int().min(1).max(WEEK_CAP)).max(WEEK_CAP)
     .transform((weeks) => [...new Set(weeks)].sort((a, b) => a - b)),
 });
 
@@ -49,5 +53,10 @@ export const busyMutationSchema = z.object({
 });
 
 export const scheduleQuerySchema = z.object({
-  week: z.coerce.number().int().min(1).max(16).optional(),
+  week: z.coerce.number().int().min(1).max(WEEK_CAP).optional(),
+});
+
+// 确认/取消「本学期无课」；确认后共同空闲按已知的「无课（有空）」参与（AV-03）
+export const confirmEmptySchema = z.object({
+  confirmed: z.boolean(),
 });

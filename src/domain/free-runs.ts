@@ -1,40 +1,24 @@
-import { PERIOD_COUNT } from "@/src/config/period-times";
 import { WEEKDAYS, type Weekday } from "./schedule";
-
-export interface SlotInfo {
-  commonFree: boolean;
-  freeCount: number;
-  selectedUsers: number;
-}
-
-export type SlotGrid = Record<Weekday, Record<string, SlotInfo>>;
+import type { MinuteInterval } from "./free-intervals";
 
 export interface FreeRun {
   weekday: Weekday;
-  startPeriod: number;
-  endPeriod: number;
+  startMin: number;
+  endMin: number;
 }
 
-// 把每周每节的「全员有空」格子折算成一天内的连续空档；
-// isExcluded 用于把已经过去的时段排除在今天之外。
-// periodCount 跟随所在学校的作息预设（缺省 = 北大 12 节）。
+// 服务端已在钟点轴上算出「全员空闲」的分钟区间；这里只把「已完全过去」的
+// 区间从今天排除。isExcluded 以区间整体判断，正在进行的区间仍会完整保留。
 export function buildFreeRuns(
-  slots: SlotGrid,
-  isExcluded?: (weekday: Weekday, period: number) => boolean,
-  periodCount: number = PERIOD_COUNT,
+  freeIntervals: Record<Weekday, MinuteInterval[]>,
+  isExcluded?: (weekday: Weekday, run: MinuteInterval) => boolean,
 ): FreeRun[] {
   const runs: FreeRun[] = [];
   for (const weekday of WEEKDAYS) {
-    let start: number | null = null;
-    for (let period = 1; period <= periodCount + 1; period += 1) {
-      const info = period <= periodCount ? slots[weekday]?.[String(period)] : undefined;
-      const free = Boolean(info?.commonFree) && !(isExcluded?.(weekday, period) ?? false);
-      if (free && start === null) {
-        start = period;
-      } else if (!free && start !== null) {
-        runs.push({ weekday, startPeriod: start, endPeriod: period - 1 });
-        start = null;
-      }
+    for (const interval of freeIntervals[weekday] ?? []) {
+      if (interval.endMin <= interval.startMin) continue;
+      if (isExcluded?.(weekday, interval)) continue;
+      runs.push({ weekday, startMin: interval.startMin, endMin: interval.endMin });
     }
   }
   return runs;
@@ -47,4 +31,10 @@ export function formatDuration(minutes: number): string {
   if (hours === 0) return `${rest} 分钟`;
   if (rest === 0) return `${hours} 小时`;
   return `${hours} 小时 ${rest} 分`;
+}
+
+export function formatClock(minutes: number): string {
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mm = String(minutes % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
 }

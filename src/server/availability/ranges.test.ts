@@ -14,7 +14,7 @@ function rangesFor(scheduleId: string | null, startDate: string, viewWeek: numbe
     viewWeek,
     meetings: meetings.map((meeting, index) => ({ id: String(index), ...meeting })),
     busyBlocks: [],
-    skippedMeetingIds: new Set<string>(),
+    skipsByMeeting: new Map(),
   });
 }
 
@@ -49,33 +49,45 @@ describe("跨校可用性的日期与钟点换算", () => {
     expect(aligned.ranges.monday).toHaveLength(1);
   });
 
-  it("跳过周（SKIP）与周次范围照常生效", () => {
+  it("跳过只作用于被标记的那一周，其余周照常上课（AV-01）", () => {
     const meetings = [
       { id: "m1", weekday: 1, startPeriod: 3, endPeriod: 4, weeks: [1, 2, 3] },
     ];
-    const notSkipped = buildMemberRanges({
+    const skipOnlyWeek2 = new Map([["m1", new Set([2])]]);
+    const build = (viewWeek: number) => buildMemberRanges({
       memberSchedule: getScheduleById(null),
       memberStartDate: GROUP_START,
       memberWeekCount: 16,
       groupStartDate: GROUP_START,
-      viewWeek: 2,
+      viewWeek,
       meetings,
       busyBlocks: [],
-      skippedMeetingIds: new Set(["m1"]),
+      skipsByMeeting: skipOnlyWeek2,
     });
-    expect(notSkipped.ranges.monday).toEqual([]);
+    // 第 2 周标记「不去」：该周无课
+    expect(build(2).ranges.monday).toEqual([]);
+    // 第 3 周照常上课；第 4 周超出上课周次，无课
+    expect(build(3).ranges.monday).toEqual([{ startMin: 610, endMin: 720 }]);
+    expect(build(4).ranges.monday).toEqual([]);
+  });
 
-    const outOfRange = buildMemberRanges({
-      memberSchedule: getScheduleById(null),
-      memberStartDate: GROUP_START,
+  it("跨校开学日不同时，跳过按成员自己的教学周匹配（AV-01）", () => {
+    // 成员学校 9/14 开学：群第 2 周（9/14 当周）= 成员第 1 周
+    const skipMemberWeek1 = new Map([["m1", new Set([1])]]);
+    const build = (viewWeek: number) => buildMemberRanges({
+      memberSchedule: getScheduleById("uibe"),
+      memberStartDate: "2026-09-14",
       memberWeekCount: 16,
       groupStartDate: GROUP_START,
-      viewWeek: 4,
-      meetings,
+      viewWeek,
+      meetings: [{ id: "m1", weekday: 1, startPeriod: 1, endPeriod: 2, weeks: [1, 2] }],
       busyBlocks: [],
-      skippedMeetingIds: new Set(),
+      skipsByMeeting: skipMemberWeek1,
     });
-    expect(outOfRange.ranges.monday).toEqual([]);
+    // 群第 2 周换算为成员第 1 周：跳过生效
+    expect(build(2).ranges.monday).toEqual([]);
+    // 群第 3 周 = 成员第 2 周：未被跳过，照常按 UIBE 钟点出现
+    expect(build(3).ranges.monday).toEqual([{ startMin: 480, endMin: 570 }]);
   });
 
   it("UIBE 预设行的时间网格保持单调", () => {

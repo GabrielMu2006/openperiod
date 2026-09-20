@@ -81,6 +81,18 @@ describe("PkuExcelImporter", () => {
     expect(result.courses[0].meetings[1]).toMatchObject({ weekday: "thursday", startPeriod: 7, endPeriod: 8 });
   });
 
+  it("parses explicit and missing week rules with the target semester length", () => {
+    const result = parseWorkbookSheets([{ sheet: "二十周课表", data: [
+      ["Course", "Weekday", "StartPeriod", "EndPeriod", "Weeks"],
+      ["长学期课程", "周一", 1, 2, "1-20"],
+      ["待确认课程", "周二", 3, 4, ""],
+    ] }], undefined, 20);
+
+    expect(result.courses[0].meetings[0].weeks).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+    expect(result.courses[1].meetings[0].weeks).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+    expect(result.warnings[0].message).toContain("1–20 周");
+  });
+
   it("parses a timetable grid and reports uncertain weeks", () => {
     const result = parseWorkbookSheets([{ sheet: "课表", data: [
       ["节次", "周一", "周二", "周三", "周四", "周五"],

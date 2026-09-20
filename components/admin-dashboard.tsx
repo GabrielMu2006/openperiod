@@ -21,6 +21,7 @@ type AdminGroup = {
   id: string;
   name: string;
   inviteCode: string;
+  archivedAt: string | null;
   ownerNickname: string | null;
   ownerEmail: string | null;
   memberCount: number;
@@ -230,7 +231,7 @@ export function AdminDashboard() {
       {error && <p className="admin-error" role="alert">{error}</p>}
 
       {data === null ? (
-        <p className="admin-note">正在加载…</p>
+        <p className="admin-note" role="status" aria-live="polite" aria-busy="true">正在加载…</p>
       ) : (
         <>
           <p className="admin-note">
@@ -305,13 +306,14 @@ export function AdminDashboard() {
               <div className="admin-table-scroll">
                 <table className="admin-table">
                   <thead>
-                    <tr><th>群组名</th><th>邀请码</th><th>群主</th><th>成员</th><th>创建时间</th><th>内部 ID</th></tr>
+                    <tr><th>群组名</th><th>状态</th><th>邀请码</th><th>群主</th><th>成员</th><th>创建时间</th><th>内部 ID</th></tr>
                   </thead>
                   <tbody>
                     {filteredGroups.map((item) => (
                       <tr key={item.id}>
                         <td>{item.name}</td>
-                        <td className="admin-mono">{item.inviteCode}</td>
+                        <td>{item.archivedAt ? "已归档" : "使用中"}</td>
+                        <td className="admin-mono">{item.archivedAt ? "已停用" : item.inviteCode}</td>
                         <td>{item.ownerNickname ?? "（账号已不存在）"}<small className="admin-sub">{item.ownerEmail}</small></td>
                         <td>{item.memberCount}</td>
                         <td>{formatTime(item.createdAt)}</td>

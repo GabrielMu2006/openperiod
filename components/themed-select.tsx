@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { CaretDown, Check } from "@phosphor-icons/react";
 
 export type ThemedOption = { value: string; label: string; hint?: string };
 export type ThemedGroup = { label?: string; options: ThemedOption[] };
@@ -135,7 +136,7 @@ export function ThemedSelect({
         onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
         onKeyDown={onKeyDown}
       />
-      <span className="tsel-chevron" aria-hidden="true">▾</span>
+      <span className="tsel-chevron" aria-hidden="true"><CaretDown className="ui-icon" weight="bold" /></span>
       {open && (
         <ul
           className="tsel-panel"
@@ -170,7 +171,7 @@ export function ThemedSelect({
                         data-value={option.value}
                       >
                         <span>{option.label}</span>
-                        {option.value === value && <span className="tsel-check" aria-hidden="true">✓</span>}
+                        {option.value === value && <span className="tsel-check" aria-hidden="true"><Check className="ui-icon" weight="bold" /></span>}
                       </li>
                     );
                   }),
@@ -190,7 +191,7 @@ export function ThemedSelect({
                       data-value={option.value}
                     >
                       <span>{option.label}</span>
-                      {option.value === value && <span className="tsel-check" aria-hidden="true">✓</span>}
+                      {option.value === value && <span className="tsel-check" aria-hidden="true"><Check className="ui-icon" weight="bold" /></span>}
                     </li>
                   );
                 })

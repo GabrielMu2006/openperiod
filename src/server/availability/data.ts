@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
-import { WEEKDAYS, type PrivacyLevel, type Weekday } from "@/src/domain/schedule";
+import { WEEKDAYS, type MemberScheduleState, type PrivacyLevel, type Weekday } from "@/src/domain/schedule";
+import { commonFreeIntervals, type MinuteInterval } from "@/src/domain/free-intervals";
 import { getScheduleById, scheduleFromSemester, type SchedulePreset } from "@/src/config/school-schedules";
 import { getDatabase } from "@/src/server/db";
 import {
@@ -11,12 +12,16 @@ import {
   groupMembers,
   groupPrivacyOverrides,
   groups,
+  semesterConfirmations,
   semesters,
   users,
 } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
+import { getUserCustomRows, memberSchoolKey } from "@/src/server/semesters/data";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type { MemberScheduleState };
 
 const weekdayFromNumber: Record<number, Weekday> = {
   1: "monday",
@@ -47,10 +52,11 @@ export interface MemberBusyContext {
   nickname: string;
   defaultPrivacyLevel: PrivacyLevel;
   ranges: Record<Weekday, BusyRange[]>;
-  /** 成员作息里晚于北大 12 节的行（钟点标注追加行的候选） */
-  lateRows: LateRow[];
+  /** 成员作息行；超出群组作息覆盖范围时可生成钟点追加行 */
+  scheduleRows: ScheduleTimeRow[];
+  state: MemberScheduleState;
 }
-interface LateRow { startMin: number; endMin: number; timeText: string }
+interface ScheduleTimeRow { startMin: number; endMin: number; timeText: string }
 
 // 把成员的会议/私人忙碌换算成「群查看周各天的分钟区间」。
 // 跨校的正确性在这里成立：日期按各自学校开学日对齐到周次，节次按各自学校作息换算成钟点。
@@ -62,18 +68,16 @@ export function buildMemberRanges(options: {
   viewWeek: number;
   meetings: { id: string; weekday: number; startPeriod: number; endPeriod: number; weeks: number[]; courseName?: string; courseFullLabel?: string }[];
   busyBlocks: { weekday: number; startPeriod: number; endPeriod: number; weeks: number[] }[];
-  skippedMeetingIds: Set<string>;
-}): { ranges: Record<Weekday, BusyRange[]>; lateRows: LateRow[] } {
+  /** 课程时段 ID → 「不去」的成员教学周集合；跳过只作用于对应周 */
+  skipsByMeeting: Map<string, Set<number>>;
+}): { ranges: Record<Weekday, BusyRange[]>; scheduleRows: ScheduleTimeRow[] } {
   const { memberSchedule, memberStartDate, memberWeekCount, groupStartDate, viewWeek } = options;
   const base = Date.parse(`${groupStartDate}T00:00:00Z`);
   const memberBase = Date.parse(`${memberStartDate}T00:00:00Z`);
   const ranges = emptyRanges();
-  // 成员作息里晚于北大 12 节的行，作为群网格的「追加钟点行」候选
-  const pkuLastEnd = Math.max(...PKU_GRID.rows.map((row) => toMinutes(row.end)));
-  const lateRows: LateRow[] = memberSchedule.rows
-    .map((row) => ({ startMin: toMinutes(row.start), endMin: toMinutes(row.end), timeText: row.start + "–" + row.end }))
-    .filter((row) => row.startMin >= pkuLastEnd);
-  if (Number.isNaN(base) || Number.isNaN(memberBase)) return { ranges, lateRows };
+  const scheduleRows: ScheduleTimeRow[] = memberSchedule.rows
+    .map((row) => ({ startMin: toMinutes(row.start), endMin: toMinutes(row.end), timeText: row.start + "–" + row.end }));
+  if (Number.isNaN(base) || Number.isNaN(memberBase)) return { ranges, scheduleRows };
 
   for (let weekdayIndex = 0; weekdayIndex < 7; weekdayIndex += 1) {
     const dayStart = base + ((viewWeek - 1) * 7 + weekdayIndex) * DAY_MS;
@@ -82,7 +86,7 @@ export function buildMemberRanges(options: {
     const weekday = WEEKDAYS[weekdayIndex];
     for (const meeting of options.meetings) {
       if (meeting.weekday !== weekdayIndex + 1 || !meeting.weeks.includes(week)) continue;
-      if (options.skippedMeetingIds.has(meeting.id)) continue;
+      if (options.skipsByMeeting.get(meeting.id)?.has(week)) continue;
       const start = memberSchedule.rows[meeting.startPeriod - 1];
       const end = memberSchedule.rows[meeting.endPeriod - 1];
       if (!start || !end) continue;
@@ -101,10 +105,8 @@ export function buildMemberRanges(options: {
       ranges[weekday].push({ startMin: toMinutes(start.start), endMin: toMinutes(end.end) });
     }
   }
-  return { ranges, lateRows };
+  return { ranges, scheduleRows };
 }
-
-const PKU_GRID = getScheduleById(null);
 
 export interface GridRow {
   period: number;
@@ -114,23 +116,25 @@ export interface GridRow {
   endMin: number;
 }
 
-// 群展示网格：统一为北大 12 节；成员日程超出北大覆盖范围（21:30 之后）时，
+// 群展示网格以群组学期的作息为唯一基准；成员日程超出该作息覆盖范围时，
 // 追加以钟点标注的额外行（去重、按时间排序、最多 4 行，且必须有人才保留）。
-function buildDisplayGrid(members: MemberBusyContext[]): GridRow[] {
-  const base: GridRow[] = PKU_GRID.rows.map((row, index) => ({
+function buildDisplayGrid(groupSchedule: Pick<SchedulePreset, "rows">, members: MemberBusyContext[]): GridRow[] {
+  const base: GridRow[] = groupSchedule.rows.map((row, index) => ({
     period: index + 1,
-    label: "第 " + (index + 1) + " 节",
+    label: row.label ?? "群组第 " + (index + 1) + " 节",
     timeText: row.start + "–" + row.end,
     startMin: toMinutes(row.start),
     endMin: toMinutes(row.end),
   }));
-  const pkuLastEnd = base[base.length - 1].endMin;
+  const baseLastEnd = base[base.length - 1].endMin;
 
   const candidates = new Map<string, { startMin: number; endMin: number; timeText: string }>();
   for (const member of members) {
-    for (const row of member.lateRows) {
-      if (row.startMin < pkuLastEnd) continue;
-      candidates.set(row.startMin + "-" + row.endMin, row);
+    for (const row of member.scheduleRows) {
+      if (row.endMin <= baseLastEnd) continue;
+      const startMin = Math.max(row.startMin, baseLastEnd);
+      const candidate = { startMin, endMin: row.endMin, timeText: toClock(startMin) + "–" + toClock(row.endMin) };
+      candidates.set(candidate.startMin + "-" + candidate.endMin, candidate);
     }
   }
   const extras = [...candidates.values()]
@@ -146,6 +150,10 @@ function buildDisplayGrid(members: MemberBusyContext[]): GridRow[] {
       endMin: row.endMin,
     }));
   return [...base, ...extras];
+}
+
+function toClock(minutes: number) {
+  return String(Math.floor(minutes / 60)).padStart(2, "0") + ":" + String(minutes % 60).padStart(2, "0");
 }
 
 function intersects(aStart: number, aEnd: number, bStart: number, bEnd: number) {
@@ -175,11 +183,14 @@ async function loadAuthorizedGroupSchedule(
   const [membership] = await db
     .select({
       semesterId: groups.semesterId,
+      ownerId: groups.ownerId,
+      archivedAt: groups.archivedAt,
       groupScheduleId: semesters.scheduleId,
       groupCustomSchedule: semesters.customSchedule,
       groupStartDate: semesters.startDate,
       groupAcademicYear: semesters.academicYear,
       groupSemester: semesters.semester,
+      groupWeekCount: semesters.weekCount,
     })
     .from(groupMembers)
     .innerJoin(groups, eq(groupMembers.groupId, groups.id))
@@ -188,8 +199,18 @@ async function loadAuthorizedGroupSchedule(
     .limit(1);
 
   if (!membership) throw new HttpError(404, "群组不存在或你不是群组成员");
-  const groupSchedule: SchedulePreset = membership.groupCustomSchedule?.length
-    ? scheduleFromSemester({ scheduleId: "custom", customSchedule: membership.groupCustomSchedule })
+  if (membership.archivedAt) throw new HttpError(410, "群组已归档，请先在群组页恢复");
+  // 查看周由群组学期的实际周数驱动（SCH-02）
+  if (viewWeek > membership.groupWeekCount) {
+    throw new HttpError(400, `教学周超出本学期范围（1–${membership.groupWeekCount} 周）`);
+  }
+  // 自定义群组的网格跟随群主自己的作息（SCH-01）；历史共享列仅作兜底
+  const groupCustomRows = membership.groupScheduleId === "custom"
+    ? await getUserCustomRows(membership.ownerId, membership.groupAcademicYear, membership.groupSemester)
+      ?? membership.groupCustomSchedule
+    : null;
+  const groupSchedule: SchedulePreset = groupCustomRows?.length
+    ? scheduleFromSemester({ scheduleId: "custom", customSchedule: groupCustomRows })
     : getScheduleById(membership.groupScheduleId);
 
   const memberRows = await db
@@ -220,27 +241,34 @@ async function loadAuthorizedGroupSchedule(
   // 每位成员各自学校的学期（同学年/同学期名称），课表数据从各自的学期读取
   const members = await Promise.all(
     memberRows.map(async (member) => {
-      const isCustom = member.userScheduleId === "custom";
       const preset = getScheduleById(member.userScheduleId);
-      const schoolKey = isCustom ? "custom" : preset.id === "pku" ? "PKU" : preset.id;
+      // 成员学期按自己学校的作息定位（与群组完整度统计共用 memberSchoolKey 规则，AV-04）
       const [memberSemester] = await db
-        .select({ id: semesters.id, startDate: semesters.startDate, weekCount: semesters.weekCount, scheduleId: semesters.scheduleId, customSchedule: semesters.customSchedule })
+        .select({
+          id: semesters.id,
+          startDate: semesters.startDate,
+          weekCount: semesters.weekCount,
+          scheduleId: semesters.scheduleId,
+          academicYear: semesters.academicYear,
+          semester: semesters.semester,
+        })
         .from(semesters)
         .where(and(
-          eq(semesters.school, schoolKey),
+          eq(semesters.school, memberSchoolKey(member.userScheduleId)),
           eq(semesters.academicYear, membership.groupAcademicYear),
           eq(semesters.semester, membership.groupSemester),
         ))
         .limit(1);
 
       if (!memberSemester) {
-        // 成员尚未在该学期录入任何课表：按全天空闲计算
+        // 成员在该学期没有任何学期行：课表状态未知，不计入有空结论
         return {
           userId: member.id,
           nickname: member.nickname,
           defaultPrivacyLevel: member.defaultPrivacyLevel as PrivacyLevel,
           ranges: emptyRanges(),
-          lateRows: [],
+          scheduleRows: [],
+          state: "unrecorded",
         } satisfies MemberBusyContext;
       }
 
@@ -254,7 +282,7 @@ async function loadAuthorizedGroupSchedule(
         : [];
       const exceptionRows = meetingRows.length
         ? await db
-            .select({ courseMeetingId: courseExceptions.courseMeetingId })
+            .select({ courseMeetingId: courseExceptions.courseMeetingId, week: courseExceptions.week })
             .from(courseExceptions)
             .where(and(
               eq(courseExceptions.userId, member.id),
@@ -265,11 +293,35 @@ async function loadAuthorizedGroupSchedule(
         .select()
         .from(busyBlocks)
         .where(and(eq(busyBlocks.userId, member.id), eq(busyBlocks.semesterId, memberSemester.id)));
+      // 未知 ≠ 无课：只有成员录入过数据（课程或忙碌）或显式确认过，才能按已知参与计算
+      const [confirmation] = await db
+        .select({ userId: semesterConfirmations.userId })
+        .from(semesterConfirmations)
+        .where(and(eq(semesterConfirmations.userId, member.id), eq(semesterConfirmations.semesterId, memberSemester.id)))
+        .limit(1);
+      const state: MemberScheduleState = courseRows.length || busyRows.length
+        ? "recorded"
+        : confirmation
+          ? "confirmedEmpty"
+          : "unrecorded";
 
-      const memberSchedule: SchedulePreset = memberSemester.customSchedule?.length
-        ? scheduleFromSemester({ scheduleId: "custom", customSchedule: memberSemester.customSchedule })
+      // 成员自定义作息读其本人名下的网格（SCH-01）；没有则按所选学校预设
+      const memberCustomRows = member.userScheduleId === "custom"
+        ? await getUserCustomRows(member.id, memberSemester.academicYear, memberSemester.semester)
+        : null;
+      const memberSchedule: SchedulePreset = memberCustomRows?.length
+        ? scheduleFromSemester({ scheduleId: "custom", customSchedule: memberCustomRows })
         : preset;
 
+
+      // 「不去」按成员自己学期的教学周记录；buildMemberRanges 先把群查看日期
+      // 换算成成员教学周，再按周匹配，单周跳过不影响其他周。
+      const skipsByMeeting = new Map<string, Set<number>>();
+      for (const exception of exceptionRows) {
+        const weeks = skipsByMeeting.get(exception.courseMeetingId);
+        if (weeks) weeks.add(exception.week);
+        else skipsByMeeting.set(exception.courseMeetingId, new Set([exception.week]));
+      }
 
       const built = buildMemberRanges({
         memberSchedule: memberSchedule,
@@ -297,7 +349,7 @@ async function loadAuthorizedGroupSchedule(
           endPeriod: block.endPeriod,
           weeks: block.weeks,
         })),
-        skippedMeetingIds: new Set(exceptionRows.map((exception) => exception.courseMeetingId)),
+        skipsByMeeting,
       });
 
       return {
@@ -305,7 +357,8 @@ async function loadAuthorizedGroupSchedule(
         nickname: member.nickname,
         defaultPrivacyLevel: member.defaultPrivacyLevel as PrivacyLevel,
         ranges: built.ranges,
-        lateRows: built.lateRows,
+        scheduleRows: built.scheduleRows,
+        state,
       } satisfies MemberBusyContext;
     }),
   );
@@ -319,30 +372,49 @@ export async function getGroupAvailability(
   week: number,
   selectedUserIds: string[],
 ) {
-  const { members } = await loadAuthorizedGroupSchedule(viewerId, groupId, selectedUserIds, week);
-  const gridRows = buildDisplayGrid(members);
-  const slots: Record<string, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number }>> = {};
+  const { groupSchedule, members } = await loadAuthorizedGroupSchedule(viewerId, groupId, selectedUserIds, week);
+  const gridRows = buildDisplayGrid(groupSchedule, members);
+  // 未知成员（未录入且未确认无课）不计入有空结论，避免传递过强确定性（AV-03）
+  const knownMembers = members.filter((member) => member.state !== "unrecorded");
+  const unknownCount = members.length - knownMembers.length;
+  const slots: Record<string, Record<string, { commonFree: boolean; freeCount: number; selectedUsers: number; unknownCount: number }>> = {};
 
   for (const weekday of WEEKDAYS) {
     slots[weekday] = {};
     for (const row of gridRows) {
       const rowStart = row.startMin;
       const rowEnd = row.endMin;
-      const freeCount = members.filter(
+      const freeCount = knownMembers.filter(
         (member) => !member.ranges[weekday].some((range) => intersects(rowStart, rowEnd, range.startMin, range.endMin)),
       ).length;
       slots[weekday][String(row.period)] = {
-        commonFree: selectedUserIds.length > 0 && freeCount === selectedUserIds.length,
+        commonFree: selectedUserIds.length > 0 && unknownCount === 0 && freeCount === members.length,
         freeCount,
         selectedUsers: selectedUserIds.length,
+        unknownCount,
       };
     }
+  }
+
+  // 共同空档按真实钟点轴计算：已录入成员忙碌并集在显示网格范围内的补集，
+  // 网格行之间的午间/课间同样经过检查，不会被相邻空闲格子跨越（AV-02）。
+  const axisStart = Math.min(...gridRows.map((row) => row.startMin));
+  const axisEnd = Math.max(...gridRows.map((row) => row.endMin));
+  const freeIntervals = {} as Record<Weekday, MinuteInterval[]>;
+  for (const weekday of WEEKDAYS) {
+    const busy = knownMembers.flatMap((member) =>
+      member.ranges[weekday].map((range) => ({ startMin: range.startMin, endMin: range.endMin })));
+    freeIntervals[weekday] = selectedUserIds.length > 0 && knownMembers.length > 0
+      ? commonFreeIntervals(busy, axisStart, axisEnd)
+      : [];
   }
 
   return {
     week,
     selectedUsers: selectedUserIds.length,
+    unknownCount,
     slots,
+    freeIntervals,
     gridRows: gridRows.map((row) => ({ period: row.period, label: row.label, timeText: row.timeText, startMin: row.startMin, endMin: row.endMin })),
   };
 }
@@ -355,19 +427,22 @@ export async function getGroupAvailabilityDetails(
   period: number,
   selectedUserIds: string[],
 ) {
-  const { members, privacyByUserId } = await loadAuthorizedGroupSchedule(
+  const { groupSchedule, members, privacyByUserId } = await loadAuthorizedGroupSchedule(
     viewerId,
     groupId,
     selectedUserIds,
     week,
   );
-  const gridRows = buildDisplayGrid(members);
+  const gridRows = buildDisplayGrid(groupSchedule, members);
   const row = gridRows[period - 1];
   if (!row) throw new HttpError(400, "节次超出网格范围");
   const rowStart = row.startMin;
   const rowEnd = row.endMin;
 
   const details = members.map((member) => {
+    if (member.state === "unrecorded") {
+      return { userId: member.userId, nickname: member.nickname, free: false, unknown: true };
+    }
     const busyRange = member.ranges[weekday].find((range) => intersects(rowStart, rowEnd, range.startMin, range.endMin));
     if (!busyRange) return { userId: member.userId, nickname: member.nickname, free: true };
     // 私人忙碌没有标题；课程信息按隐私级别投影（本人始终可见完整信息）
@@ -385,13 +460,16 @@ export async function getGroupAvailabilityDetails(
   });
 
   const freeCount = details.filter((detail) => detail.free).length;
+  const unknownCount = details.filter((detail) => detail.unknown).length;
   return {
     week,
     weekday,
     period,
-    commonFree: selectedUserIds.length > 0 && freeCount === selectedUserIds.length,
+    commonFree: selectedUserIds.length > 0 && unknownCount === 0 && freeCount === details.length,
     freeCount,
     selectedUsers: selectedUserIds.length,
+    unknownCount,
+    gridRow: { period: row.period, label: row.label, timeText: row.timeText, startMin: row.startMin, endMin: row.endMin },
     details,
   };
 }

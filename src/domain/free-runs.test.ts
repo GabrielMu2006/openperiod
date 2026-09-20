@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { PERIOD_COUNT, periodRange, periodRangeMinutes } from "@/src/config/period-times";
-import { buildFreeRuns, formatDuration, type SlotGrid } from "./free-runs";
-import { WEEKDAYS } from "./schedule";
+import { periodRange, periodRangeMinutes } from "@/src/config/period-times";
+import { buildFreeRuns, formatClock, formatDuration } from "./free-runs";
+import { WEEKDAYS, type Weekday } from "./schedule";
 
-function grid(freeByPeriod: Record<number, boolean>): SlotGrid {
-  return Object.fromEntries(WEEKDAYS.map((weekday) => [weekday, Object.fromEntries(
-    Array.from({ length: PERIOD_COUNT }, (_, index) => index + 1).map((period) => [
-      String(period),
-      { commonFree: weekday === "monday" && Boolean(freeByPeriod[period]), freeCount: 0, selectedUsers: 2 },
-    ]),
-  )])) as SlotGrid;
+function intervals(list: [number, number][]) {
+  return Object.fromEntries(WEEKDAYS.map((weekday) => [
+    weekday,
+    weekday === "monday" ? list.map(([startMin, endMin]) => ({ startMin, endMin })) : [],
+  ])) as Record<Weekday, { startMin: number; endMin: number }[]>;
 }
 
 describe("periodRange", () => {
@@ -25,31 +23,36 @@ describe("periodRange", () => {
 });
 
 describe("buildFreeRuns", () => {
-  it("merges consecutive free periods into runs per weekday", () => {
-    const slots = grid({ 1: true, 2: true, 3: false, 4: true, 5: true, 6: true });
-    const runs = buildFreeRuns(slots);
+  it("builds runs from clock-axis common free intervals", () => {
+    const runs = buildFreeRuns(intervals([[480, 600], [720, 900]]));
     expect(runs).toEqual([
-      { weekday: "monday", startPeriod: 1, endPeriod: 2 },
-      { weekday: "monday", startPeriod: 4, endPeriod: 6 },
+      { weekday: "monday", startMin: 480, endMin: 600 },
+      { weekday: "monday", startMin: 720, endMin: 900 },
     ]);
   });
 
-  it("excludes past slots before building runs", () => {
-    const slots = grid({ 1: true, 2: true });
-    const runs = buildFreeRuns(slots, (_weekday, period) => period === 1);
-    expect(runs).toEqual([{ weekday: "monday", startPeriod: 2, endPeriod: 2 }]);
+  it("drops intervals that have fully passed today", () => {
+    const runs = buildFreeRuns(intervals([[480, 600], [720, 900]]), (weekday, run) => weekday === "monday" && run.endMin <= 600);
+    expect(runs).toEqual([{ weekday: "monday", startMin: 720, endMin: 900 }]);
+  });
+
+  it("keeps an ongoing interval intact", () => {
+    const runs = buildFreeRuns(intervals([[480, 600]]), (weekday, run) => weekday === "monday" && run.endMin <= 500);
+    expect(runs).toEqual([{ weekday: "monday", startMin: 480, endMin: 600 }]);
   });
 
   it("returns an empty list when nothing is free", () => {
-    expect(buildFreeRuns(grid({}))).toEqual([]);
+    expect(buildFreeRuns(intervals([]))).toEqual([]);
   });
 });
 
-describe("formatDuration", () => {
-  it("formats minutes and hours", () => {
+describe("formatDuration / formatClock", () => {
+  it("formats minutes, hours and clock labels", () => {
     expect(formatDuration(50)).toBe("50 分钟");
     expect(formatDuration(110)).toBe("1 小时 50 分");
     expect(formatDuration(120)).toBe("2 小时");
     expect(formatDuration(0)).toBe("0 分钟");
+    expect(formatClock(480)).toBe("08:00");
+    expect(formatClock(730)).toBe("12:10");
   });
 });

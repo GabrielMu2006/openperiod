@@ -77,11 +77,17 @@ export interface AvailabilityDetail {
   nickname: string;
   free: boolean;
   label?: string;
+  /** 课表未知（未录入且未确认无课）：不计入有空结论 */
+  unknown?: boolean;
 }
 
 export interface AvailabilitySlot {
   commonFree: boolean;
   freeCount: number;
   selectedUsers: number;
+  unknownCount: number;
   details: AvailabilityDetail[];
 }
+
+/** 成员课表完整度三态：已录入（有课程或忙碌）、已确认无课、未知（AV-03/AV-04） */
+export type MemberScheduleState = "recorded" | "confirmedEmpty" | "unrecorded";

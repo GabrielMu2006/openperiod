@@ -14,7 +14,7 @@ export default function WelcomePage() {
           <p className="welcome-lede">课隙帮你和同学、朋友找出「大家都有空」的时间——不用再在群里挨个问「你周四下午有空吗」。</p>
         </div>
         <ol className="welcome-steps">
-          <li><i>1</i><div><strong>登录</strong><span>输入邮箱即可；第一次使用需要输入邮件验证码，确认邮箱属于你。</span></div></li>
+          <li><i>1</i><div><strong>登录</strong><span>用邮箱和密码登录；第一次注册或老账号首次设密码时验证邮箱，之后无需反复接收验证码。</span></div></li>
           <li><i>2</i><div><strong>录入课表</strong><span>上传教务系统导出的 Excel 课表，或手动添加课程和私人安排。</span></div></li>
           <li><i>3</i><div><strong>建群或加入群组</strong><span>群成员一起看共同空闲矩阵，点开空档复制时间，直接发到群里约。</span></div></li>
         </ol>

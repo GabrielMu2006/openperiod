@@ -11,6 +11,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+# NEXT_PUBLIC_* 在构建时注入：备案号经 --build-arg 传入镜像
+ARG NEXT_PUBLIC_ICP_BEIAN
+ENV NEXT_PUBLIC_ICP_BEIAN=$NEXT_PUBLIC_ICP_BEIAN
 RUN pnpm build
 
 ENV PORT=3000 HOSTNAME=0.0.0.0

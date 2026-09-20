@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CheckCircle, X } from "@phosphor-icons/react";
 import { useDialogBehavior } from "@/components/dialog-behavior";
 
 const MAX_CONTENT = 2000;
@@ -75,11 +76,11 @@ export function FeedbackButton() {
             aria-labelledby="feedback-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <button className="detail-close" type="button" onClick={() => setOpen(false)} aria-label="关闭">×</button>
+            <button className="detail-close icon-button" type="button" onClick={() => setOpen(false)} aria-label="关闭"><X className="ui-icon" weight="bold" /></button>
             <p className="eyebrow">FEEDBACK</p>
             <h2 id="feedback-title">反馈与建议</h2>
             {done ? (
-              <p className="feedback-done" role="status">已收到，谢谢你！♥</p>
+              <p className="feedback-done" role="status"><CheckCircle className="ui-icon" weight="fill" />已收到，谢谢你！</p>
             ) : (
               <>
                 <textarea

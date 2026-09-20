@@ -2,6 +2,7 @@
 
 import { useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
+import { UploadSimple } from "@phosphor-icons/react";
 import { getScheduleById, listSchedulePresets } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
 
@@ -99,10 +100,22 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
 
   async function runAi() {
     if (!aiFile && !aiText.trim()) return setError("先上传课表截图，或粘贴课表文字");
+    let customRows: { start: string; end: string }[] | undefined;
+    if (isCustom) {
+      const parsedRows = parseCustomText(customText);
+      if (!parsedRows) return setError("自定义作息格式：每行一节，如「08:00 08:50」，至少一行");
+      customRows = parsedRows;
+    }
     setAiPending(true);
     setError("");
     try {
-      let body: { mode: "image" | "text"; image?: string; text?: string };
+      let body: {
+        mode: "image" | "text";
+        image?: string;
+        text?: string;
+        scheduleId: string;
+        customRows?: { start: string; end: string }[];
+      };
       if (aiFile) {
         const dataUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -110,9 +123,9 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
           reader.onerror = () => reject(new Error("截图读取失败"));
           reader.readAsDataURL(aiFile);
         });
-        body = { mode: "image", image: dataUrl };
+        body = { mode: "image", image: dataUrl, scheduleId, customRows };
       } else {
-        body = { mode: "text", text: aiText };
+        body = { mode: "text", text: aiText, scheduleId, customRows };
       }
       const response = await fetch("/api/import/ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const payload = (await response.json()) as { preview?: { id: string }; error?: string };
@@ -174,7 +187,7 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
         onDrop={drop}
       >
         <input ref={inputRef} type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => choose(event.target.files?.[0])} hidden />
-        <span className="upload-icon" aria-hidden="true">⇧</span>
+        <span className="upload-icon" aria-hidden="true"><UploadSimple className="ui-icon" weight="regular" /></span>
         <h2>{file ? file.name : "拖入课表 Excel 文件"}</h2>
         <p>{file ? `${(file.size / 1024).toFixed(0)} KB · 可以开始解析` : isPku ? "支持北京大学教务系统导出的课表，或下方标准模板；文件只用于解析，不会被永久保存。" : `支持${preset.school}标准模板；文件只用于解析，不会被永久保存。`}</p>
         <button type="button" onClick={() => inputRef.current?.click()}>{file ? "重新选择" : "选择 Excel 文件"}</button>
@@ -204,7 +217,7 @@ export function ImportUpload({ initialScheduleId }: { initialScheduleId?: string
           placeholder={"粘贴课表文字，例如从教务系统网页直接复制：\n高等数学 周一 第3-4节 1-16周\n大学英语 周三 第1-2节 单周"}
           onDrop={(event) => { const image = event.dataTransfer.files[0]; if (image) { event.preventDefault(); chooseAiImage(image); } }}
         />
-        <small>识别结果会进入下一步检查页，确认无误才导入；截图与文字仅发送给 AI 服务（智谱）用于解析，不会保存原图。每天最多 10 次。</small>
+        <small>识别结果会进入下一步检查页，确认无误才导入；截图与文字仅发送给 AI 服务（智谱）用于解析，不会保存原图。每个账号每天最多 10 次，北京时间 00:00 重置；开始调用 AI 后即计入次数。</small>
         {aiFile && <small>已选截图 {((aiFile.size / 1024) | 0)} KB，可直接点击下方按钮识别。</small>}
         <button type="button" className="ai-import-submit" disabled={aiPending} onClick={runAi}>{aiPending ? "AI 识别中…（约 10–30 秒）" : "AI 识别并预览"}</button>
       </section>

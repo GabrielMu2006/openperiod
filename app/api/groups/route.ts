@@ -5,12 +5,14 @@ import { errorResponse } from "@/src/server/http";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return Response.json({ error: "未登录" }, { status: 401 });
     return Response.json({
-      groups: await listGroupsForUser(user.id),
+      groups: await listGroupsForUser(user.id, {
+        includeArchived: new URL(request.url).searchParams.get("includeArchived") === "1",
+      }),
       defaultPrivacyLevel: user.defaultPrivacyLevel,
     });
   } catch (error) {

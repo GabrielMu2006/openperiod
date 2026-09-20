@@ -5,6 +5,7 @@ import { listSchedulePresets } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { PasswordSettings } from "@/components/password-settings";
 import type { PrivacyLevel } from "@/src/domain/schedule";
 
 interface SessionUser {
@@ -14,6 +15,7 @@ interface SessionUser {
   email: string;
   defaultPrivacyLevel: PrivacyLevel;
   emailVerifiedAt: string | null;
+  hasPassword: boolean;
 }
 
 interface SemesterInfo {
@@ -82,7 +84,7 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
       });
       const body = (await response.json()) as { user?: SessionUser; error?: string };
       if (!response.ok || !body.user) throw new Error(body.error ?? "保存失败");
-      setUser(body.user);
+      setUser((previous) => previous ? { ...previous, ...body.user! } : body.user!);
       setNickname(body.user.nickname);
       setPrivacy(body.user.defaultPrivacyLevel);
       setScheduleId(body.user.scheduleId ?? "pku");
@@ -117,7 +119,7 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
           <div className="settings-field">
             邮箱
             <output className="settings-static">{user?.email ?? "…"}</output>
-            <p className="settings-note">{user?.emailVerifiedAt ? "邮箱已验证，之后在其他设备登录也无需再次验证。" : "邮箱尚未验证：下次登录时需要输入邮件验证码。"}</p>
+            <p className="settings-note">邮箱用于登录和找回密码，日常登录无需邮件验证码。</p>
           </div>
         </section>
 
@@ -161,6 +163,8 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
           </dl>
           <p className="settings-note">学期信息由系统统一配置，暂不支持在此修改。</p>
         </section>
+
+        {user?.hasPassword && <PasswordSettings email={user.email} />}
 
         <section className="settings-card settings-account" aria-labelledby="settings-account">
           <h2 id="settings-account">账户</h2>

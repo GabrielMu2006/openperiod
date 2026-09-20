@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { CalendarBlank, CalendarDots, UserCircle, UsersThree } from "@phosphor-icons/react";
 import { FeedbackButton } from "@/components/feedback-button";
 
 const navItems = [
-  { key: "availability", label: "共同空闲", href: "/", icon: "▦" },
-  { key: "schedule", label: "我的课表", href: "/schedule", icon: "▤" },
-  { key: "groups", label: "群组", href: "/groups", icon: "◎" },
-  { key: "me", label: "我的", href: "/settings", icon: "◇" },
+  { key: "availability", label: "共同空闲", href: "/", icon: CalendarDots },
+  { key: "schedule", label: "我的课表", href: "/schedule", icon: CalendarBlank },
+  { key: "groups", label: "群组", href: "/groups", icon: UsersThree },
+  { key: "me", label: "我的", href: "/settings", icon: UserCircle },
 ] as const;
 
 export type AppShellSection = (typeof navItems)[number]["key"];
@@ -95,14 +96,14 @@ export function AppShell({ active, topbarCenter, sidebarNote, children }: AppShe
       </header>
 
       <aside className="sidebar" aria-label="主导航">
-        <nav>{navItems.map((item) => <a className={item.key === active ? "active" : ""} aria-current={item.key === active ? "page" : undefined} href={item.href} key={item.key}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}</nav>
+        <nav>{navItems.map((item) => { const NavIcon = item.icon; return <a className={item.key === active ? "active" : ""} aria-current={item.key === active ? "page" : undefined} href={item.href} key={item.key}><span aria-hidden="true"><NavIcon className="ui-icon nav-icon" weight="regular" /></span>{item.label}</a>; })}</nav>
         {sidebarNote}
       </aside>
 
       <main id="main" className="main-content">{children}</main>
 
       <nav className="bottom-nav" aria-label="移动端主导航">
-        {navItems.map((item) => <a className={item.key === active ? "active" : ""} aria-current={item.key === active ? "page" : undefined} href={item.href} key={item.key}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}
+        {navItems.map((item) => { const NavIcon = item.icon; return <a className={item.key === active ? "active" : ""} aria-current={item.key === active ? "page" : undefined} href={item.href} key={item.key}><span aria-hidden="true"><NavIcon className="ui-icon nav-icon" weight="regular" /></span>{item.label}</a>; })}
       </nav>
     </div>
   );

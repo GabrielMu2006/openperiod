@@ -10,9 +10,15 @@ describe("availability API query", () => {
     expect(result).toEqual({ week: 5, users: [alice, bob] });
   });
 
-  it("rejects periods and weeks outside the global grid cap", () => {
-    expect(availabilityQuerySchema.safeParse({ week: 17, users: alice }).success).toBe(false);
-    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 17 }).success).toBe(false);
+  it("rejects periods and weeks outside the static caps; week validity is semester-driven", () => {
+    // 17 周在静态上限内，实际是否合法由数据层按群组学期的周数校验（SCH-02）
+    expect(availabilityQuerySchema.safeParse({ week: 17, users: alice }).success).toBe(true);
+    expect(availabilityQuerySchema.safeParse({ week: 0, users: alice }).success).toBe(false);
+    expect(availabilityQuerySchema.safeParse({ week: 53, users: alice }).success).toBe(false);
+    // 最多 16 个学校作息行 + 4 个跨校晚间追加行（TIME-01）
+    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 17 }).success).toBe(true);
+    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 20 }).success).toBe(true);
+    expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 21 }).success).toBe(false);
     // 13-16 节在多学校支持后合法（如南大 14 节制）
     expect(availabilityDetailQuerySchema.safeParse({ week: 5, users: alice, weekday: "monday", period: 14 }).success).toBe(true);
   });

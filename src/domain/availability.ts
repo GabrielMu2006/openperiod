@@ -77,6 +77,8 @@ export function calculateAvailabilitySlot(
     commonFree: selectedUsers.length > 0 && freeCount === selectedUsers.length,
     freeCount,
     selectedUsers: selectedUsers.length,
+    // 该纯函数不掌握课表完整度状态；数据集内的用户一律按已录入处理
+    unknownCount: 0,
     details,
   };
 }

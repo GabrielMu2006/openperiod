@@ -4,11 +4,21 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { listSchedulePresets } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
+import { PasswordField } from "@/components/password-field";
+import type { ChallengePurpose } from "@/src/domain/auth";
 
+type Mode = "login" | ChallengePurpose;
 type Step = "email" | "code" | "nickname";
+const labels: Record<ChallengePurpose, string> = { REGISTER: "注册账号", SET_PASSWORD: "老账号首次设置密码", RESET_PASSWORD: "找回密码" };
+const notes: Record<ChallengePurpose, string> = {
+  REGISTER: "验证邮箱后设置密码，即可创建账号。",
+  SET_PASSWORD: "使用原账号的邮箱验证身份，课表和群组会完整保留。已设置过密码请返回登录或找回密码。",
+  RESET_PASSWORD: "验证邮箱后设置新密码，所有旧登录会话会失效。尚未设置过密码的老账号请选择首次设置密码。",
+};
 
-export function IdentityForm() {
+export function IdentityForm({ initialMode = "login" }: { initialMode?: Mode }) {
   const router = useRouter();
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [step, setStep] = useState<Step>("email");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -16,6 +26,7 @@ export function IdentityForm() {
   const [schoolId, setSchoolId] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [challengeId, setChallengeId] = useState("");
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
@@ -25,70 +36,68 @@ export function IdentityForm() {
     return () => clearInterval(timer);
   }, [step]);
 
-  function enter() {
-    router.replace("/");
-    router.refresh();
+  function enter() { router.replace("/"); router.refresh(); }
+  function switchMode(next: Mode) { setMode(next); setStep("email"); setError(""); setCode(""); setChallengeId(""); }
+  function finish(body: { user?: { nickname: string }; needsNickname?: boolean }) {
+    if (!body.user) throw new Error("无法确认登录状态，请重试");
+    if (body.needsNickname) { setNickname(body.user.nickname); setStep("nickname"); }
+    else enter();
+  }
+
+  async function requestCode(resend = false) {
+    const response = await fetch(resend ? "/api/auth/resend" : "/api/auth/identify", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, purpose: mode }),
+    });
+    const body = await response.json() as { error?: string; challengeId?: string; email?: string };
+    if (!response.ok || !body.challengeId || !body.email) throw new Error(body.error ?? "无法发送验证码");
+    setEmail(body.email);
+    setChallengeId(body.challengeId);
+    setCode("");
+    setNow(Date.now());
+    setCooldownUntil(Date.now() + 60_000);
+    setStep("code");
   }
 
   async function submitEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
-    setError("");
-
     const form = new FormData(event.currentTarget);
-    const input = String(form.get("email") ?? "");
+    setPending(true); setError("");
     try {
-      const response = await fetch("/api/auth/identify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: input }),
+      if (mode !== "login") { await requestCode(); return; }
+      const response = await fetch("/api/auth/login", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: form.get("password") }),
       });
-      const body = (await response.json()) as { error?: string; verificationRequired?: boolean; email?: string; user?: { nickname: string }; needsNickname?: boolean };
+      const body = await response.json() as { error?: string; user?: { nickname: string }; needsNickname?: boolean };
       if (!response.ok) throw new Error(body.error ?? "暂时无法登录");
-      setEmail(body.email ?? input);
-      if (body.verificationRequired) {
-        setCode("");
-        setCooldownUntil(Date.now() + 60_000);
-        setStep("code");
-        setPending(false);
-        return;
-      }
-      if (body.needsNickname && body.user) {
-        setNickname(body.user.nickname);
-        setStep("nickname");
-        setPending(false);
-        return;
-      }
-      enter();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "暂时无法登录");
-      setPending(false);
-    }
+      finish(body);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "暂时无法登录"); }
+    finally { setPending(false); }
   }
 
   async function submitCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
+    const form = new FormData(event.currentTarget);
     setError("");
+    if (form.get("password") !== form.get("confirmPassword")) { setError("两次输入的密码不一致"); return; }
+    setPending(true);
     try {
       const response = await fetch("/api/auth/verify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, purpose: mode, challengeId, code, password: form.get("password") }),
       });
-      const body = (await response.json()) as { error?: string; user?: { nickname: string }; needsNickname?: boolean };
+      const body = await response.json() as { error?: string; user?: { nickname: string }; needsNickname?: boolean };
       if (!response.ok) throw new Error(body.error ?? "验证失败");
-      if (body.needsNickname && body.user) {
-        setNickname(body.user.nickname);
-        setStep("nickname");
-        setPending(false);
-        return;
-      }
-      enter();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "验证失败");
-      setPending(false);
-    }
+      finish(body);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "验证失败"); }
+    finally { setPending(false); }
+  }
+
+  async function resendCode() {
+    if (pending || Date.now() < cooldownUntil) return;
+    setPending(true); setError("");
+    try { await requestCode(true); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "重新发送失败"); }
+    finally { setPending(false); }
   }
 
   async function submitNickname(event: FormEvent<HTMLFormElement>) {
@@ -110,54 +119,27 @@ export function IdentityForm() {
     }
   }
 
-  async function resendCode() {
-    if (Date.now() < cooldownUntil) return;
-    setPending(true);
-    setError("");
-    try {
-      const response = await fetch("/api/auth/resend", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "重新发送失败");
-      setCooldownUntil(Date.now() + 60_000);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "重新发送失败");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  if (step === "code") {
+  if (step === "code" && mode !== "login") {
     const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
-    return (
-      <form className="identity-form" onSubmit={submitCode}>
-        <label htmlFor="code">验证码</label>
-        <input
-          id="code"
-          name="code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          required
-          maxLength={6}
-          value={code}
-          placeholder="6 位数字"
-          autoFocus
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-        />
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button type="submit" disabled={pending || code.length !== 6}>{pending ? "正在验证…" : "验证并登录"}</button>
-        <p className="code-hint">验证码已发送至 {email}，15 分钟内有效。</p>
-        <div className="code-actions">
-          <button type="button" className="link-button" disabled={pending || cooldownSeconds > 0} onClick={resendCode}>
-            {cooldownSeconds > 0 ? `重新发送（${cooldownSeconds}s）` : "重新发送"}
-          </button>
-          <button type="button" className="link-button" onClick={() => { setStep("email"); setError(""); setCode(""); }}>返回修改邮箱</button>
-        </div>
-      </form>
-    );
+    return <form className="identity-form" onSubmit={submitCode} key="code">
+      <h2 className="auth-mode-title">{labels[mode]}</h2>
+      <p className="auth-mode-note auth-email">如果邮箱符合所选操作条件，验证码将发送至 {email}，15 分钟内有效。未收到邮件时，请检查垃圾邮件和所选操作。</p>
+      <input type="hidden" name="username" autoComplete="username" value={email} />
+      <label htmlFor="code">邮箱验证码</label>
+      <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" required maxLength={6}
+        value={code} placeholder="6 位数字" autoFocus disabled={pending} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
+      <PasswordField id="password" label="设置密码" newPassword disabled={pending} />
+      <PasswordField id="confirmPassword" label="确认密码" newPassword disabled={pending} />
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button type="submit" disabled={pending || code.length !== 6}>{pending ? "正在验证…" : "验证并设置密码"}</button>
+      <div className="code-actions">
+        <button type="button" className="link-button" disabled={pending || cooldownSeconds > 0} onClick={resendCode}>
+          {cooldownSeconds > 0 ? `重新发送（${cooldownSeconds}s）` : "重新发送"}
+        </button>
+        <button type="button" className="link-button" disabled={pending} onClick={() => switchMode(mode)}>返回修改邮箱</button>
+        <button type="button" className="link-button" disabled={pending} onClick={() => switchMode("login")}>返回密码登录</button>
+      </div>
+    </form>;
   }
 
   if (step === "nickname") {
@@ -201,12 +183,23 @@ export function IdentityForm() {
     );
   }
 
-  return (
-    <form className="identity-form" onSubmit={submitEmail}>
-      <label htmlFor="email">邮箱</label>
-      <input id="email" name="email" type="email" autoComplete="email" required maxLength={320} placeholder="name@example.com" defaultValue={email} />
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button type="submit" disabled={pending}>{pending ? "正在进入…" : "继续"}</button>
-    </form>
-  );
+  return <form className="identity-form" onSubmit={submitEmail} key={mode}>
+    {mode !== "login" && <>
+      <h2 className="auth-mode-title">{labels[mode]}</h2>
+      <p className="auth-mode-note">{notes[mode]}</p>
+    </>}
+    <label htmlFor="email">邮箱</label>
+    <input id="email" name="username" type="email" autoComplete="username" required maxLength={320}
+      placeholder="name@example.com" value={email} disabled={pending} onChange={(event) => setEmail(event.target.value)} />
+    {mode === "login" && <PasswordField id="password" label="密码" disabled={pending} />}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <button type="submit" disabled={pending}>{pending ? "正在处理…" : mode === "login" ? "登录" : "获取邮箱验证码"}</button>
+    <div className="auth-links">
+      {mode === "login" ? <>
+        <button type="button" className="link-button" disabled={pending} onClick={() => switchMode("REGISTER")}>注册账号</button>
+        <button type="button" className="link-button" disabled={pending} onClick={() => switchMode("SET_PASSWORD")}>老账号首次设密码</button>
+        <button type="button" className="link-button" disabled={pending} onClick={() => switchMode("RESET_PASSWORD")}>忘记密码</button>
+      </> : <button type="button" className="link-button" disabled={pending} onClick={() => switchMode("login")}>返回密码登录</button>}
+    </div>
+  </form>;
 }
