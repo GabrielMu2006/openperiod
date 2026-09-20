@@ -84,11 +84,15 @@ beforeEach(() => {
   mocks.replace.mockReset();
   window.history.replaceState(null, "", "/");
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+  // 固定「今天 = 2026-09-16（周三，第 2 周）」，避免测试随真实日历翻页而失效；
+  // 仅 mock Date，保留真实定时器以兼容 userEvent / waitFor。
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-16T04:00:00Z") });
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("common availability interaction regression", () => {

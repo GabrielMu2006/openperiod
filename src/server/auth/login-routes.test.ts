@@ -358,7 +358,7 @@ describe("password authentication through real SQL and route boundaries", () => 
 
   it("rejects short or oversized new passwords and oversized HTTP bodies before issuing credentials", async () => {
     const input = await challenge();
-    for (const value of ["too short", "x".repeat(129)]) {
+    for (const value of ["short", "x".repeat(129)]) {
       expect((await verify(request("/api/auth/verify", { ...input, password: value }))).status).toBe(400);
     }
     expect((await login(request("/api/auth/login", { email, password: "x".repeat(9000) }))).status).toBe(413);

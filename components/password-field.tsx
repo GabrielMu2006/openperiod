@@ -18,7 +18,7 @@ export function PasswordField({ id, label, newPassword = false, disabled = false
         <button type="button" className="link-button" aria-label={`${visible ? "隐藏" : "显示"}${label}`}
           aria-pressed={visible} disabled={disabled} onClick={() => setVisible(!visible)}>{visible ? "隐藏" : "显示"}</button>
       </div>
-      {newPassword && <small id={`${id}-hint`} className="password-hint">15–128 个字符，可用长句，无需固定字符组合。</small>}
+      {newPassword && <small id={`${id}-hint`} className="password-hint">6–128 个字符，无需固定字符组合。</small>}
     </div>
   );
 }
