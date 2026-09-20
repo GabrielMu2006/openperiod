@@ -2,10 +2,21 @@
 	email {$ACME_EMAIL}
 }
 
+# Explicit HTTP site: GET/HEAD redirect to HTTPS; unsafe methods are rejected
+# with 426 (no Location), so credential-bearing requests are never redirected.
+http://{$OPENPERIOD_DOMAIN} {
+	@unsafe method POST PUT PATCH DELETE
+	@safety not method POST PUT PATCH DELETE
+	respond @unsafe 426 {
+		close
+	}
+	redir @safety https://{host}{uri} 308
+}
+
 {$OPENPERIOD_DOMAIN} {
 	encode zstd gzip
 
-	# Caddy owns public ports 80/443 and automatically redirects HTTP to HTTPS.
+	# Caddy owns public ports 80/443.
 	# The upstream port must only be reachable from this host.
 	reverse_proxy 127.0.0.1:3000 {
 		header_up Host {host}
