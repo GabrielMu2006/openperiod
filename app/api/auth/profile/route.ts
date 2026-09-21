@@ -20,6 +20,7 @@ export async function PUT(request: Request) {
     const parsed = profileSchema.safeParse(await request.json());
     if (!parsed.success) return Response.json({ error: "资料信息无效" }, { status: 400 });
     if (parsed.data.scheduleId !== undefined && parsed.data.scheduleId !== null
+      && parsed.data.scheduleId !== "custom"
       && getScheduleById(parsed.data.scheduleId).id !== parsed.data.scheduleId) {
       throw new HttpError(400, "未知的学校作息");
     }

@@ -159,6 +159,9 @@ export function MySchedule() {
       setNotice({ text: "课表导入成功，已替换当前学期的课表。" });
       setSnapshotId(params.get("snapshot") ?? "");
       window.history.replaceState(null, "", "/schedule");
+    } else if (params.has("custom")) {
+      setNotice({ text: "作息时间表已保存。点「添加课程」逐门录入，时间直接写开始与结束即可。" });
+      window.history.replaceState(null, "", "/schedule");
     }
   }, []);
 
@@ -366,18 +369,20 @@ export function MySchedule() {
   );
 }
 
+type ScheduleInfoDTO = { id?: string; rows: { period?: number; start: string; end: string; label?: string }[]; blocks?: { label: string; from: number; to: number }[] };
+
 interface EditorProps<T> { selection: T; week: number; semesterWeekCount: number; onClose(): void; onSaved(): Promise<void>; onError(message: string): void }
 
 interface CourseEditorProps extends EditorProps<CourseSelection> {
   semesterStartDate: string;
-  scheduleInfo?: { rows: { period?: number; start: string; end: string; label?: string }[]; blocks?: { label: string; from: number; to: number }[] };
+  scheduleInfo?: ScheduleInfoDTO;
   busyBlocks: BusyDTO[];
   onSkipChange(meeting: MeetingDTO, week: number, skipped: boolean): void;
   onBatchSkip(meeting: MeetingDTO, weeks: number[], previousWeeks: number[]): void;
 }
 
 interface BusyEditorProps extends EditorProps<BusySelection> {
-  scheduleInfo?: { rows: { period?: number; start: string; end: string; label?: string }[]; blocks?: { label: string; from: number; to: number }[] };
+  scheduleInfo?: ScheduleInfoDTO;
   courses: CourseDTO[];
 }
 
@@ -479,7 +484,8 @@ function CourseEditor({ selection, week, semesterWeekCount, semesterStartDate, s
     if (dirty && !window.confirm("修改还没有保存，确定要关闭吗？")) return;
     onClose();
   }, false);
-  const [courseMode, setCourseMode] = useState<PeriodMode>("school");
+  // 其他学校（自定义作息）默认按时间录入：节次号对他们没有意义，直接写开始/结束时间
+  const [courseMode, setCourseMode] = useState<PeriodMode>(scheduleInfo?.id === "custom" ? "time" : "school");
 
   // 与私人忙碌的时间冲突（星期相同、节次重叠、周次有交集）
   const conflicts = useMemo(() => {
@@ -565,7 +571,7 @@ function BusyEditor({ scheduleInfo, selection, week, semesterWeekCount, courses,
   // 新增时默认「仅本周」（当前查看周）；已有的一次性忙碌按自定义周展示，避免编辑时被悄悄改成当前周
   const initialRepeat = block ? (block.kind === "ONE_TIME" ? "CUSTOM" : weeksText(block.weeks, semesterWeekCount) === `1-${semesterWeekCount}` ? "EVERY" : weeksText(block.weeks, semesterWeekCount) === "单周" ? "ODD" : weeksText(block.weeks, semesterWeekCount) === "双周" ? "EVEN" : "CUSTOM") : "THIS_WEEK";
   const [title, setTitle] = useState(block?.title ?? "");
-  const [busyMode, setBusyMode] = useState<PeriodMode>("school");
+  const [busyMode, setBusyMode] = useState<PeriodMode>(scheduleInfo?.id === "custom" ? "time" : "school");
   const [weekday, setWeekday] = useState<Weekday>(block?.weekday ?? prefill?.weekday ?? "monday");
   const [startPeriod, setStartPeriod] = useState(block?.startPeriod ?? prefill?.startPeriod ?? 1);
   const [endPeriod, setEndPeriod] = useState(block?.endPeriod ?? prefill?.endPeriod ?? 2);

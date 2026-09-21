@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { listSchedulePresets } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
+import { schoolPickerEmptyFooter } from "@/components/import-upload";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { PasswordSettings } from "@/components/password-settings";
@@ -132,13 +133,16 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
             disabled={!user}
             ariaLabel="我的学校"
             placeholder="输入学校名筛选，如：复旦"
-            emptyText="没有匹配的学校"
+            emptyText="没有找到这所学校"
+            emptyFooter={schoolPickerEmptyFooter(() => { setScheduleId("custom"); setSaved(false); setSaveError(""); })}
             groups={[
               { label: "按小节排课（一节 40–50 分钟）", options: listSchedulePresets().filter((preset) => preset.kind === "period").map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
               { label: "按大节排课（一节 80 分钟以上）", options: listSchedulePresets().filter((preset) => preset.kind === "block").map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
+              { label: "其他", options: [{ value: "custom", label: "其他学校（手动添加课表）" }] },
             ]}
             onChange={(next) => { setScheduleId(next); setSaved(false); setSaveError(""); }}
           />
+          {scheduleId === "custom" && <p className="settings-note">已选「其他学校」：请到<a href="/import">导入课表</a>页填写作息时间表（每节课的开始与结束时间），然后手动添加课程。</p>}
         </section>
 
         <section className="settings-card" aria-labelledby="settings-privacy">

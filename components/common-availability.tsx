@@ -426,7 +426,17 @@ export function CommonAvailability() {
             </div></div>
           </div>
 
-          <div className="member-bar"><div><strong>参与成员</strong><span>已选择 {selectedIds.length} / {members.length} 人</span></div><div className="member-chips"><button type="button" className={selectedIds.length === members.length ? "selected" : ""} onClick={() => setSelectedIds(selectedIds.length === members.length ? [] : members.map((member) => member.id))}>{selectedIds.length === members.length ? "取消全选" : "全选"}</button>{(members.length > 6 && !membersExpanded ? members.slice(0, 5) : members).map((member) => { const selected = selectedIds.includes(member.id); const state = memberState(member); return <button type="button" className={selected ? "selected" : ""} aria-pressed={selected} title={state === "unrecorded" ? "该成员尚未录入课表，TA 的有空状态待确认" : state === "confirmedEmpty" ? "该成员已确认本学期无课，按有空参与" : undefined} onClick={() => toggleMember(member.id)} key={member.id}>{selected && <span><Check className="ui-icon" weight="bold" /></span>}{member.nickname}{member.scheduleId && member.scheduleId !== "pku" && <em className="chip-flag">{getScheduleById(member.scheduleId).school}</em>}{state === "unrecorded" && <em className="chip-flag">未录</em>}{state === "confirmedEmpty" && <em className="chip-flag">无课</em>}</button>; })}{members.length > 6 && <button type="button" className="members-toggle" aria-expanded={membersExpanded} onClick={() => setMembersExpanded((value) => !value)}>{membersExpanded ? "收起" : `全部 ${members.length} 人`}</button>}</div></div>
+          <div className="member-bar">
+            <div className="member-bar-head">
+              <div><strong>参与成员</strong><span>已选择 {selectedIds.length} / {members.length} 人</span></div>
+              <button type="button" className="members-toggle" aria-pressed={selectedIds.length === members.length} onClick={() => setSelectedIds(selectedIds.length === members.length ? [] : members.map((member) => member.id))}>{selectedIds.length === members.length ? "取消全选" : "全选"}</button>
+            </div>
+            <div className="member-chips">{(members.length > 6 && !membersExpanded ? members.slice(0, 5) : members).map((member) => {
+              const selected = selectedIds.includes(member.id);
+              const state = memberState(member);
+              return <button type="button" className={selected ? "selected" : ""} aria-pressed={selected} title={state === "unrecorded" ? "该成员尚未录入课表，TA 的有空状态待确认" : state === "confirmedEmpty" ? "该成员已确认本学期无课，按有空参与" : undefined} onClick={() => toggleMember(member.id)} key={member.id}>{selected && <span><Check className="ui-icon" weight="bold" /></span>}{member.nickname}{member.scheduleId && member.scheduleId !== "pku" && <em className="chip-flag">{member.scheduleId === "custom" ? "自定义" : getScheduleById(member.scheduleId).school}</em>}{state === "unrecorded" && <em className="chip-flag">未录</em>}{state === "confirmedEmpty" && <em className="chip-flag">无课</em>}</button>;
+            })}{members.length > 6 && <button type="button" className="members-toggle" aria-expanded={membersExpanded} onClick={() => setMembersExpanded((value) => !value)}>{membersExpanded ? "收起" : `全部 ${members.length} 人`}</button>}</div>
+          </div>
 
           {selectedIds.length === 0 ? <div className="empty-state"><Logo /><h2>请选择至少一位成员</h2><p>选择成员后，这里会立即显示共同空闲。</p></div> : <div className={`availability-results${gridLoading ? " is-updating" : ""}`} aria-busy={gridLoading}>
             {gridLoading && <div className="update-status" role="status" aria-live="polite" aria-atomic="true"><span className="update-status-track" aria-hidden="true"><i /></span>正在更新共同空闲…</div>}

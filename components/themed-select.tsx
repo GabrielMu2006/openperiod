@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { CaretDown, Check } from "@phosphor-icons/react";
 
 export type ThemedOption = { value: string; label: string; hint?: string };
@@ -16,9 +16,15 @@ interface ThemedSelectProps {
   disabled?: boolean;
   ariaLabel?: string;
   emptyText?: string;
+  /** 搜索无结果时展示在空态下方的自定义操作（如「选其他学校」「去反馈」） */
+  emptyFooter?: ReactNode;
   /** 挂在根元素上，供外层控制宽度 */
   className?: string;
 }
+
+const PANEL_MAX = 302;
+/** 下方可用空间小于该值且上方更宽裕时，面板向上展开（避免被手机键盘/视口底部裁掉） */
+const FLIP_THRESHOLD = 240;
 
 // 符合站点主题的下拉/组合框，替代系统原生 select。
 // 键盘：↑↓ 移动、Enter 选中、Esc 关闭；可搜索模式输入即过滤。
@@ -31,11 +37,14 @@ export function ThemedSelect({
   disabled = false,
   ariaLabel,
   emptyText = "没有匹配的选项",
+  emptyFooter,
   className,
 }: ThemedSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [flip, setFlip] = useState(false);
+  const [panelMax, setPanelMax] = useState(PANEL_MAX);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLLIElement>(null);
@@ -57,20 +66,47 @@ export function ThemedSelect({
   const selected = flat.find((option) => option.value === value)
     ?? groups.flatMap((group) => group.options).find((option) => option.value === value);
 
+  // 面板默认向下展开；触发器贴近视口底部（手机键盘弹起时常见）且上方更宽裕时改为向上。
+  function updatePlacement() {
+    const root = rootRef.current;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const shouldFlip = spaceBelow < FLIP_THRESHOLD && spaceAbove > spaceBelow;
+    setFlip(shouldFlip);
+    setPanelMax(Math.max(140, Math.min(PANEL_MAX, (shouldFlip ? spaceAbove : spaceBelow) - 14)));
+  }
+
   useEffect(() => {
     if (!open) return;
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
     function onPointerDown(event: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
     }
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  }, []);
 
+  // 打开或重新过滤时：高亮定位到已选项（无则第一项）；仅在「打开且未输入筛选」时滚动定位，
+  // 避免输入过程中面板随高亮乱跳。
   useEffect(() => {
-    setActive(0);
-  }, [query, open]);
+    const index = flat.findIndex((option) => option.value === value);
+    shouldScrollRef.current = open && !query && index > 3;
+    setActive(index >= 0 ? index : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, query]);
 
-  // 仅键盘导航时滚动定位，鼠标 hover 不滚动（避免面板在点击瞬间移动）
+  // 仅键盘导航或打开定位时滚动，鼠标 hover 不滚动（避免面板在点击瞬间移动）
   useEffect(() => {
     if (!shouldScrollRef.current) return;
     shouldScrollRef.current = false;
@@ -130,7 +166,7 @@ export function ThemedSelect({
         aria-haspopup="listbox"
         disabled={disabled}
         value={open && searchable ? query : selected?.label ?? ""}
-        placeholder={selected ? undefined : placeholder}
+        placeholder={open && searchable ? placeholder : selected ? undefined : placeholder}
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
         onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
@@ -139,19 +175,34 @@ export function ThemedSelect({
       <span className="tsel-chevron" aria-hidden="true"><CaretDown className="ui-icon" weight="bold" /></span>
       {open && (
         <ul
-          className="tsel-panel"
+          className={`tsel-panel${flip ? " flip" : ""}`}
           id={listId}
           role="listbox"
           aria-label={ariaLabel}
+          style={{ maxHeight: panelMax }}
           onPointerDown={(event) => {
-            const target = (event.target as HTMLElement).closest("[data-value]");
-            if (!target) return;
+            const target = event.target as HTMLElement;
+            // 空态操作按钮交给原生 click（这里若卸载面板会吞掉 click），冒泡到面板 onClick 再收起
+            if (target.closest(".tsel-empty-footer")) return;
+            const optionTarget = target.closest("[data-value]");
+            if (!optionTarget) return;
             event.preventDefault();
-            const option = flat.find((item) => item.value === target.getAttribute("data-value"));
+            const option = flat.find((item) => item.value === optionTarget.getAttribute("data-value"));
             if (option) select(option);
           }}
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest(".tsel-empty-footer")) {
+              setOpen(false);
+              setQuery("");
+            }
+          }}
         >
-          {flat.length === 0 && <li className="tsel-empty">{emptyText}</li>}
+          {flat.length === 0 && (
+            <>
+              <li className="tsel-empty">{emptyText}</li>
+              {emptyFooter && <li className="tsel-empty-footer">{emptyFooter}</li>}
+            </>
+          )}
           {filtered.map((group, groupIndex) => (
             group.label
               ? [

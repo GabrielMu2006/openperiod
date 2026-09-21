@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { listSchedulePresets } from "@/src/config/school-schedules";
 import { ThemedSelect } from "@/components/themed-select";
+import { schoolPickerEmptyFooter } from "@/components/import-upload";
 import { PasswordField } from "@/components/password-field";
 import type { ChallengePurpose } from "@/src/domain/auth";
 
@@ -108,7 +109,7 @@ export function IdentityForm({ initialMode = "login" }: { initialMode?: Mode }) 
       const response = await fetch("/api/auth/profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nickname, ...(listSchedulePresets().some((preset) => preset.id === schoolId) ? { scheduleId: schoolId } : {}) }),
+        body: JSON.stringify({ nickname, ...(schoolId === "custom" || listSchedulePresets().some((preset) => preset.id === schoolId) ? { scheduleId: schoolId } : {}) }),
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "保存昵称失败");
@@ -163,17 +164,18 @@ export function IdentityForm({ initialMode = "login" }: { initialMode?: Mode }) 
           value={schoolId}
           ariaLabel="我的学校"
           placeholder="输入学校名筛选，如：复旦"
-          emptyText="没有匹配的学校，可选「其他」"
+          emptyText="没有找到这所学校"
+          emptyFooter={schoolPickerEmptyFooter(() => setSchoolId("custom"))}
           groups={[
             ...[{ label: "按小节排课（一节 40–50 分钟）" }, { label: "按大节排课（一节 80 分钟以上）" }].map((group) => ({
               label: group.label,
               options: listSchedulePresets().filter((preset) => (group.label.startsWith("按小节") ? preset.kind === "period" : preset.kind === "block")).map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })),
             })),
-            { label: "其他", options: [{ value: "__unset__", label: "其他（列表里没有我的学校）" }, { value: "__skip__", label: "暂不设置，之后再选" }] },
+            { label: "其他", options: [{ value: "custom", label: "其他学校（手动添加课表）" }, { value: "__skip__", label: "暂不设置，之后再选" }] },
           ]}
           onChange={setSchoolId}
         />
-        <small style={{ color: "var(--text-tertiary)", fontSize: 12 }}>决定课表节次网格与导入模板；选「其他/暂不设置」将按默认（北大）节次处理，之后可随时在设置中修改。</small>
+        <small style={{ color: "var(--text-tertiary)", fontSize: 12 }}>决定课表节次网格与导入模板；选「其他学校」将手动添加课表（只能填写每节课的开始与结束时间），之后可在设置中修改。</small>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button type="submit" disabled={pending || !nickname.trim()}>{pending ? "正在保存…" : "完成并进入"}</button>
         <div className="code-actions">

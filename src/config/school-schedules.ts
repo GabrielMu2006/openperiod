@@ -382,6 +382,8 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 11, start: "21:00", end: "21:50" },
     ],
   },
+    // 华中科技大学：12 小节制。来源：项目所有者提供的「教学作息时间」官方表（2026-09 确认，
+    // 与华中师范大学教务处校历一致）；第 6–8 节由旧版 14:50/15:55/16:45 修正为 14:55/16:10/17:05 起。
     {
     id: "hust",
     school: "华中科技大学",
@@ -392,9 +394,30 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 3, start: "10:10", end: "10:55" },
       { period: 4, start: "11:05", end: "11:50" },
       { period: 5, start: "14:00", end: "14:45" },
-      { period: 6, start: "14:50", end: "15:35" },
-      { period: 7, start: "15:55", end: "16:40" },
-      { period: 8, start: "16:45", end: "17:30" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:10", end: "16:55" },
+      { period: 8, start: "17:05", end: "17:50" },
+      { period: 9, start: "18:30", end: "19:15" },
+      { period: 10, start: "19:20", end: "20:05" },
+      { period: 11, start: "20:15", end: "21:00" },
+      { period: 12, start: "21:05", end: "21:50" },
+    ],
+  },
+    // 华中师范大学：12 小节制。来源：教务处官网校历「教学作息时间」（jwc.ccnu.edu.cn，2026-09 抓取），
+    // 上午 8:00 起、下午 14:00 起、晚上 18:30 起，每节 45 分钟。
+    {
+    id: "ccnu",
+    school: "华中师范大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:10", end: "10:55" },
+      { period: 4, start: "11:05", end: "11:50" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:10", end: "16:55" },
+      { period: 8, start: "17:05", end: "17:50" },
       { period: 9, start: "18:30", end: "19:15" },
       { period: 10, start: "19:20", end: "20:05" },
       { period: 11, start: "20:15", end: "21:00" },
@@ -698,13 +721,17 @@ export function scheduleFromSemester(input: {
   customSchedule?: { start: string; end: string }[] | null;
   school?: string | null;
 }): ScheduleDTO {
-  if (input.scheduleId === "custom" && input.customSchedule?.length) {
-    return {
-      id: "custom",
-      school: "自定义作息",
-      kind: "period",
-      rows: input.customSchedule.map((row, index) => ({ period: index + 1, start: row.start, end: row.end })),
-    };
+  if (input.scheduleId === "custom") {
+    if (input.customSchedule?.length) {
+      return {
+        id: "custom",
+        school: "自定义作息",
+        kind: "period",
+        rows: input.customSchedule.map((row, index) => ({ period: index + 1, start: row.start, end: row.end })),
+      };
+    }
+    // 选了「其他学校」但还没填写作息时间表：暂按默认节次显示，名称如实标注。
+    return { ...toScheduleDTO(getScheduleById(null)), school: "其他学校（未设置作息，暂按默认节次）" };
   }
   return toScheduleDTO(getScheduleById(input.scheduleId));
 }
