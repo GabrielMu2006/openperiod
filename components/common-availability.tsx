@@ -440,51 +440,6 @@ export function CommonAvailability() {
 
           {selectedIds.length === 0 ? <div className="empty-state"><Logo /><h2>请选择至少一位成员</h2><p>选择成员后，这里会立即显示共同空闲。</p></div> : <div className={`availability-results${gridLoading ? " is-updating" : ""}`} aria-busy={gridLoading}>
             {gridLoading && <div className="update-status" role="status" aria-live="polite" aria-atomic="true"><span className="update-status-track" aria-hidden="true"><i /></span>正在更新共同空闲…</div>}
-            {grid && (
-              <section className="free-runs" aria-labelledby="free-runs-title">
-                <div className="free-runs-head">
-                  <div className="free-runs-heading">
-                    <div><h2 id="free-runs-title">推荐空档</h2><p>从本周结果中整理，可直接筛选并复制时间。</p></div>
-                    <span>{visibleRuns.length} 段</span>
-                    {grid.unknownCount > 0 && <small className="runs-caveat">基于已录入成员计算，另有 {grid.unknownCount} 人待确认</small>}
-                  </div>
-                  <div className="free-runs-filters">
-                    <div className="run-day-chips" role="group" aria-label="按星期筛选">
-                      {WEEKDAYS.map((day) => {
-                        const on = runFilters.weekdays.includes(day);
-                        return <button type="button" key={day} className={on ? "on" : ""} aria-pressed={on} onClick={() => toggleRunWeekday(day)}>周{weekdayLabels[day]}</button>;
-                      })}
-                    </div>
-                    <ThemedSelect className="run-min" value={String(runFilters.minMinutes)} ariaLabel="最短时长" groups={[{ options: MIN_MINUTES_OPTIONS.map((minutes) => ({ value: String(minutes), label: minutes === 0 ? "任意时长" : `≥ ${minutes} 分钟` })) }]} onChange={(next) => setRunFilters((current) => ({ ...current, minMinutes: Number(next) }))} />
-                    <ThemedSelect className="run-daypart" value={runFilters.daypart} ariaLabel="白天或晚间" groups={[{ options: [{ value: "all", label: "全天" }, { value: "day", label: "白天（18 点前开始）" }, { value: "evening", label: "晚间（18 点后开始）" }] }]} onChange={(next) => setRunFilters((current) => ({ ...current, daypart: next as "all" | "day" | "evening" }))} />
-                  </div>
-                </div>
-                {visibleRuns.length === 0 ? (
-                  <p className="runs-empty">这一周没有符合筛选条件的共同空档。</p>
-                ) : (
-                  <ul className="free-run-list">
-                    {visibleRuns.map((run) => {
-                      const weekdayIndex = WEEKDAYS.indexOf(run.weekday);
-                      const range = `${formatClock(run.startMin)}–${formatClock(run.endMin)}`;
-                      // 两端恰好对齐服务端网格时提示对齐；所有展示、筛选与复制仍以实际钟点为准。
-                      const startRow = gridRows.find((row) => row.startMin === run.startMin);
-                      const endRow = gridRows.find((row) => row.endMin === run.endMin);
-                      const runKey = `${run.weekday}-${run.startMin}`;
-                      const claim = grid.unknownCount > 0
-                        ? `已录入成员都有空（另有 ${grid.unknownCount} 人待确认）`
-                        : "大家都有空";
-                      const copyLabel = `${longDateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周${weekdayLabels[run.weekday]}）${range} ${claim} · 来自课隙 OpenPeriod`;
-                      return <li key={runKey}>
-                        <div className="run-date"><strong>{dateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周{weekdayLabels[run.weekday]}）</strong><small>{startRow && endRow ? "与显示网格对齐" : "按实际钟点"}</small></div>
-                        <div className="run-time"><span>{range}</span><em>{formatDuration(run.endMin - run.startMin)}</em></div>
-                        <button type="button" className="run-copy" onClick={() => copyRunText(runKey, copyLabel)}>{copiedKey === runKey && <Check className="ui-icon" weight="bold" />} {copiedKey === runKey ? "已复制" : "复制时间"}</button>
-                      </li>;
-                    })}
-                  </ul>
-                )}
-              </section>
-            )}
-
             <section className="timetable-wrap" aria-labelledby="availability-matrix-title">
               <div className="matrix-head">
                 <div className="matrix-heading"><h2 id="availability-matrix-title">整周分布</h2><p>比较其他时段，点击任一格查看成员状态。</p></div>
@@ -537,6 +492,51 @@ export function CommonAvailability() {
               )}
               {grid && unrecordedCount > 0 && <p className="completeness-note">注意：{unrecordedCount} 位所选成员尚未录入课表且未确认无课，TA 们不计入「大家都有空」，相关时段按「待确认」标注。</p>}
             </section>
+
+            {grid && (
+              <section className="free-runs" aria-labelledby="free-runs-title">
+                <div className="free-runs-head">
+                  <div className="free-runs-heading">
+                    <div><h2 id="free-runs-title">推荐空档</h2><p>从本周结果中整理，可直接筛选并复制时间。</p></div>
+                    <span>{visibleRuns.length} 段</span>
+                    {grid.unknownCount > 0 && <small className="runs-caveat">基于已录入成员计算，另有 {grid.unknownCount} 人待确认</small>}
+                  </div>
+                  <div className="free-runs-filters">
+                    <div className="run-day-chips" role="group" aria-label="按星期筛选">
+                      {WEEKDAYS.map((day) => {
+                        const on = runFilters.weekdays.includes(day);
+                        return <button type="button" key={day} className={on ? "on" : ""} aria-pressed={on} onClick={() => toggleRunWeekday(day)}>周{weekdayLabels[day]}</button>;
+                      })}
+                    </div>
+                    <ThemedSelect className="run-min" value={String(runFilters.minMinutes)} ariaLabel="最短时长" groups={[{ options: MIN_MINUTES_OPTIONS.map((minutes) => ({ value: String(minutes), label: minutes === 0 ? "任意时长" : `≥ ${minutes} 分钟` })) }]} onChange={(next) => setRunFilters((current) => ({ ...current, minMinutes: Number(next) }))} />
+                    <ThemedSelect className="run-daypart" value={runFilters.daypart} ariaLabel="白天或晚间" groups={[{ options: [{ value: "all", label: "全天" }, { value: "day", label: "白天（18 点前开始）" }, { value: "evening", label: "晚间（18 点后开始）" }] }]} onChange={(next) => setRunFilters((current) => ({ ...current, daypart: next as "all" | "day" | "evening" }))} />
+                  </div>
+                </div>
+                {visibleRuns.length === 0 ? (
+                  <p className="runs-empty">这一周没有符合筛选条件的共同空档。</p>
+                ) : (
+                  <ul className="free-run-list">
+                    {visibleRuns.map((run) => {
+                      const weekdayIndex = WEEKDAYS.indexOf(run.weekday);
+                      const range = `${formatClock(run.startMin)}–${formatClock(run.endMin)}`;
+                      // 两端恰好对齐服务端网格时提示对齐；所有展示、筛选与复制仍以实际钟点为准。
+                      const startRow = gridRows.find((row) => row.startMin === run.startMin);
+                      const endRow = gridRows.find((row) => row.endMin === run.endMin);
+                      const runKey = `${run.weekday}-${run.startMin}`;
+                      const claim = grid.unknownCount > 0
+                        ? `已录入成员都有空（另有 ${grid.unknownCount} 人待确认）`
+                        : "大家都有空";
+                      const copyLabel = `${longDateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周${weekdayLabels[run.weekday]}）${range} ${claim} · 来自课隙 OpenPeriod`;
+                      return <li key={runKey}>
+                        <div className="run-date"><strong>{dateLabel(activeGroup.semester.startDate, week, weekdayIndex)}（周{weekdayLabels[run.weekday]}）</strong><small>{startRow && endRow ? "与显示网格对齐" : "按实际钟点"}</small></div>
+                        <div className="run-time"><span>{range}</span><em>{formatDuration(run.endMin - run.startMin)}</em></div>
+                        <button type="button" className="run-copy" onClick={() => copyRunText(runKey, copyLabel)}>{copiedKey === runKey && <Check className="ui-icon" weight="bold" />} {copiedKey === runKey ? "已复制" : "复制时间"}</button>
+                      </li>;
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
           </div>}
         </section>
       ) : null}

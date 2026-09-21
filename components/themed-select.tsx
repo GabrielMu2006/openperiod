@@ -180,21 +180,19 @@ export function ThemedSelect({
           role="listbox"
           aria-label={ariaLabel}
           style={{ maxHeight: panelMax }}
-          onPointerDown={(event) => {
-            const target = event.target as HTMLElement;
-            // 空态操作按钮交给原生 click（这里若卸载面板会吞掉 click），冒泡到面板 onClick 再收起
-            if (target.closest(".tsel-empty-footer")) return;
-            const optionTarget = target.closest("[data-value]");
-            if (!optionTarget) return;
-            event.preventDefault();
-            const option = flat.find((item) => item.value === optionTarget.getAttribute("data-value"));
-            if (option) select(option);
-          }}
+          // 选项统一用 click 选中：触屏上「按下」是滚动手势的开始，若在 pointerdown 就
+          // 选中（旧实现），手机端面板将无法滑动。click 在滚动结束后不会触发，桌面不变。
           onClick={(event) => {
-            if ((event.target as HTMLElement).closest(".tsel-empty-footer")) {
+            const target = event.target as HTMLElement;
+            if (target.closest(".tsel-empty-footer")) {
               setOpen(false);
               setQuery("");
+              return;
             }
+            const optionTarget = target.closest("[data-value]");
+            if (!optionTarget) return;
+            const option = flat.find((item) => item.value === optionTarget.getAttribute("data-value"));
+            if (option) select(option);
           }}
         >
           {flat.length === 0 && (

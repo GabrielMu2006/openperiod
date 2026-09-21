@@ -1050,7 +1050,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .tsel-input::placeholder { color: var(--text-tertiary); }
 .tsel-chevron { position: absolute; right: 12px; top: 50%; display: inline-flex; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 12px; transition: transform var(--motion-fast) var(--ease-standard); }
 .tsel.open .tsel-chevron { transform: translateY(-50%) rotate(180deg); }
-.tsel-panel { position: absolute; z-index: 36; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; background: var(--surface-warm); border: 1px solid var(--border); border-radius: var(--radius-panel); box-shadow: 0 14px 36px rgb(60 45 30 / 14%); max-height: 302px; overflow: auto; transform-origin: top center; animation: popover-in var(--motion-fast) var(--ease-emphasized) both; }
+.tsel-panel { position: absolute; z-index: 36; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; background: var(--surface-warm); border: 1px solid var(--border); border-radius: var(--radius-panel); box-shadow: 0 14px 36px rgb(60 45 30 / 14%); max-height: 302px; overflow: auto; overscroll-behavior: contain; transform-origin: top center; animation: popover-in var(--motion-fast) var(--ease-emphasized) both; }
 .tsel-panel.flip { top: auto; bottom: calc(100% + 6px); transform-origin: bottom center; }
 .tsel-empty-footer { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-top: 1px dashed var(--border); margin-top: 4px; }
 .tsel-empty-footer button { min-height: 34px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
