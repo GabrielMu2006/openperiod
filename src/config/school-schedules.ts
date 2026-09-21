@@ -1023,6 +1023,184 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 13, start: "20:10", end: "20:55" },
     ],
   },
+    // 北京理工大学：13 小节制（2014-09 起「全天 13 小节排课制」，良乡/中关村同表）。
+    // 来源：教务部教学日历收录片段（jwb.bit.edu.cn，第四小节 10:45-11:30、下午 13:20-14:05 等逐节）
+    // + BIT101 校园应用默认时间表双端交叉印证 + 官网通知「晚上 21:00 前下课」自洽。
+    {
+    id: "bit",
+    school: "北京理工大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:50", end: "09:35" },
+      { period: 3, start: "09:55", end: "10:40" },
+      { period: 4, start: "10:45", end: "11:30" },
+      { period: 5, start: "11:35", end: "12:20" },
+      { period: 6, start: "13:20", end: "14:05" },
+      { period: 7, start: "14:10", end: "14:55" },
+      { period: 8, start: "15:15", end: "16:00" },
+      { period: 9, start: "16:05", end: "16:50" },
+      { period: 10, start: "16:55", end: "17:40" },
+      { period: 11, start: "18:30", end: "19:15" },
+      { period: 12, start: "19:20", end: "20:05" },
+      { period: 13, start: "20:10", end: "20:55" },
+    ],
+  },
+    // 大连理工大学：12 小节制（凌水主校区）。
+    // 来源：两个独立的教务系统课表适配器第 1-8 节完全一致（自注与 jxgl.dlut.edu.cn 官方 layout 一致），
+    // 晚间第 11 节 19:40-20:25 另获文库作息表印证；晚间起始存在 18:00 / 18:30 两种口径，如不符请反馈。
+    // 开发区（软件）校区与盘锦校区作息不同，请用自定义作息。
+    {
+    id: "dlut",
+    school: "大连理工大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:50", end: "09:35" },
+      { period: 3, start: "10:05", end: "10:50" },
+      { period: 4, start: "10:55", end: "11:40" },
+      { period: 5, start: "13:30", end: "14:15" },
+      { period: 6, start: "14:20", end: "15:05" },
+      { period: 7, start: "15:35", end: "16:20" },
+      { period: 8, start: "16:25", end: "17:10" },
+      { period: 9, start: "18:00", end: "18:45" },
+      { period: 10, start: "18:50", end: "19:35" },
+      { period: 11, start: "19:40", end: "20:25" },
+      { period: 12, start: "20:30", end: "21:15" },
+    ],
+  },
+    // 东北大学：12 小节制（浑南校区，现行本科生主校区）。
+    // 来源：浑南萌新入学指南（学生会）+ 课表应用适配工具 HUNNAN_TIMES 双源一致；
+    // 南湖校区仅上午不同（8:00-8:45 / 8:55-9:40 / 10:00-10:45 / 10:55-11:40），该校区用户请反馈。
+    {
+    id: "neu",
+    school: "东北大学",
+    variant: "浑南校区",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:30", end: "09:15" },
+      { period: 2, start: "09:25", end: "10:10" },
+      { period: 3, start: "10:30", end: "11:15" },
+      { period: 4, start: "11:25", end: "12:10" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:00", end: "16:45" },
+      { period: 8, start: "16:55", end: "17:40" },
+      { period: 9, start: "18:30", end: "19:15" },
+      { period: 10, start: "19:25", end: "20:10" },
+      { period: 11, start: "20:20", end: "21:05" },
+      { period: 12, start: "21:15", end: "22:00" },
+    ],
+  },
+    // 中国海洋大学：12 小节制（崂山/鱼山校区，每节 50 分钟）。
+    // 来源：教务处《各校区作息时间表》官方 PDF（jwc.ouc.edu.cn，2022-09 发布，2026-09 直接解析原文）。
+    // 西海岸校区上午为 8:30 起（9:25-10:15 / 10:30-11:20 / 11:25-12:15），下午与晚上三校区相同。
+    {
+    id: "ouc",
+    school: "中国海洋大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:50" },
+      { period: 2, start: "09:00", end: "09:50" },
+      { period: 3, start: "10:10", end: "11:00" },
+      { period: 4, start: "11:10", end: "12:00" },
+      { period: 5, start: "13:30", end: "14:20" },
+      { period: 6, start: "14:30", end: "15:20" },
+      { period: 7, start: "15:30", end: "16:20" },
+      { period: 8, start: "16:30", end: "17:20" },
+      { period: 9, start: "17:30", end: "18:20" },
+      { period: 10, start: "18:30", end: "19:20" },
+      { period: 11, start: "19:30", end: "20:20" },
+      { period: 12, start: "20:30", end: "21:20" },
+    ],
+  },
+    // 哈尔滨工程大学：13 小节制（上午 5 节、下午 5 节、晚上 3 节，每节 45 分钟）。
+    // 来源：本科生院官方统一打铃时刻（ugs.hrbeu.edu.cn，13 个锚点）与教务系统课表适配脚本
+    // 逐节一一对应（github.com/kuailiaojie/classtable HRBEU），完全自洽。
+    {
+    id: "heu",
+    school: "哈尔滨工程大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:50", end: "09:35" },
+      { period: 3, start: "09:55", end: "10:40" },
+      { period: 4, start: "10:45", end: "11:30" },
+      { period: 5, start: "11:35", end: "12:20" },
+      { period: 6, start: "13:30", end: "14:15" },
+      { period: 7, start: "14:20", end: "15:05" },
+      { period: 8, start: "15:25", end: "16:10" },
+      { period: 9, start: "16:15", end: "17:00" },
+      { period: 10, start: "17:05", end: "17:50" },
+      { period: 11, start: "18:30", end: "19:15" },
+      { period: 12, start: "19:20", end: "20:05" },
+      { period: 13, start: "20:10", end: "20:55" },
+    ],
+  },
+    // 郑州大学：10 小节制（主校区，一天最多 5 个大节 1-2/3-4/5-6/7-8/9-10，全年统一无夏冬令）。
+    // 来源：校长办公室多份通知明确教学窗口（上午 8:00—11:40、下午 14:10—17:50、晚上 19:00—20:40），
+    // 节次按 45 分钟节长推定且与真实课表五个大节结构吻合；社区流传的另一套 12 节表与官方窗口冲突，未采纳。
+    {
+    id: "zzu",
+    school: "郑州大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:00", end: "10:45" },
+      { period: 4, start: "10:55", end: "11:40" },
+      { period: 5, start: "14:10", end: "14:55" },
+      { period: 6, start: "15:05", end: "15:50" },
+      { period: 7, start: "16:10", end: "16:55" },
+      { period: 8, start: "17:05", end: "17:50" },
+      { period: 9, start: "19:00", end: "19:45" },
+      { period: 10, start: "19:55", end: "20:40" },
+    ],
+  },
+    // 苏州大学：11 小节制（每节 50 分钟，全校统一）。
+    // 来源：第 1-8 节为海外教育学院官方上课时间表 PDF + 材料与化学化工学部公开课安排双源印证；
+    // 晚间 9-11 节按 2013 年报道的晚上教学时段 18:00-20:50 + 50 分钟节长推算，如不符请反馈。
+    {
+    id: "suda",
+    school: "苏州大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:50" },
+      { period: 2, start: "09:00", end: "09:50" },
+      { period: 3, start: "10:10", end: "11:00" },
+      { period: 4, start: "11:10", end: "12:00" },
+      { period: 5, start: "13:30", end: "14:20" },
+      { period: 6, start: "14:30", end: "15:20" },
+      { period: 7, start: "15:40", end: "16:30" },
+      { period: 8, start: "16:40", end: "17:30" },
+      { period: 9, start: "18:00", end: "18:50" },
+      { period: 10, start: "19:00", end: "19:50" },
+      { period: 11, start: "20:00", end: "20:50" },
+    ],
+  },
+    // 中央民族大学：12 小节制（每节 45 分钟）。
+    // 来源：教务处《关于丰台校区各教学楼上下课时间的通知》（jw.muc.edu.cn，2026-03）+ 2017 本科公开课表
+    // + 海南陵水试验区入驻高校统一节次表，多源逐分钟自洽。
+    // 注意：丰台校区部分教学楼（致远/明德/博文/崇理）第 3 节起错峰顺延 15 分钟，如上课时间不符请反馈。
+    {
+    id: "muc",
+    school: "中央民族大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:50", end: "09:35" },
+      { period: 3, start: "09:50", end: "10:35" },
+      { period: 4, start: "10:40", end: "11:25" },
+      { period: 5, start: "11:30", end: "12:15" },
+      { period: 6, start: "14:00", end: "14:45" },
+      { period: 7, start: "14:50", end: "15:35" },
+      { period: 8, start: "15:50", end: "16:35" },
+      { period: 9, start: "16:40", end: "17:25" },
+      { period: 10, start: "17:30", end: "18:15" },
+      { period: 11, start: "19:00", end: "19:45" },
+      { period: 12, start: "19:50", end: "20:35" },
+    ],
+  },
 ];
 
 const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(
