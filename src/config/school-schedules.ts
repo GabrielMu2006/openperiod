@@ -1201,6 +1201,249 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 12, start: "19:50", end: "20:35" },
     ],
   },
+    // 深圳大学：14 小节制（每节 40 分钟，粤海/丽湖校区通用）。
+    // 来源：官网《关于新学期上课注意事项的温馨提示》原文表格（www.szu.edu.cn，2020 秋与 2021 春两学期一致）。
+    // 第 1-12 节官方逐节公布（第 11-12 节按 2×40 分钟拆分）；第 13-14 节为官方连排区间 20:30-21:45 的等分拆分。
+    // 深大另实行夏令作息（约 5/1-9/30 下午推迟），以教务部「上课时间表」图片版为准，如不符请反馈。
+    {
+    id: "szu",
+    school: "深圳大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:30", end: "09:10" },
+      { period: 2, start: "09:15", end: "09:55" },
+      { period: 3, start: "10:15", end: "10:55" },
+      { period: 4, start: "11:00", end: "11:40" },
+      { period: 5, start: "11:45", end: "12:25" },
+      { period: 6, start: "13:30", end: "14:10" },
+      { period: 7, start: "14:15", end: "14:55" },
+      { period: 8, start: "15:00", end: "15:40" },
+      { period: 9, start: "16:00", end: "16:40" },
+      { period: 10, start: "16:45", end: "17:25" },
+      { period: 11, start: "19:00", end: "19:40" },
+      { period: 12, start: "19:40", end: "20:20" },
+      { period: 13, start: "20:30", end: "21:05" },
+      { period: 14, start: "21:10", end: "21:45" },
+    ],
+  },
+    // 上海财经大学：14 小节制（每节 45 分钟）。
+    // 来源：教务系统 EAMS 课表页表头实测映射（github.com/haohaoo3o/shufe-calendar-ics，2026-08），
+    // 与校官网多篇开学新闻（下午第一节 13:20 开始）交叉吻合。第 10-11 节之间无间隔（官方表头即如此）。
+    {
+    id: "sufe",
+    school: "上海财经大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:05", end: "10:50" },
+      { period: 4, start: "11:00", end: "11:45" },
+      { period: 5, start: "11:55", end: "12:40" },
+      { period: 6, start: "13:20", end: "14:05" },
+      { period: 7, start: "14:15", end: "15:00" },
+      { period: 8, start: "15:25", end: "16:10" },
+      { period: 9, start: "16:20", end: "17:05" },
+      { period: 10, start: "17:15", end: "18:00" },
+      { period: 11, start: "18:00", end: "18:45" },
+      { period: 12, start: "18:55", end: "19:40" },
+      { period: 13, start: "19:50", end: "20:35" },
+      { period: 14, start: "20:45", end: "21:30" },
+    ],
+  },
+    // 中央财经大学：13 小节制（每节 45 分钟，与校网络教学平台「一节课 45 分钟」说明一致）。
+    // 来源：课历适配器内置作息，溯源校发〔2019〕5 号校级文件（2026-09 人工核对）；
+    // 教务处无公开逐节网页，沙河/学院南路通用性建议让学生核对一次，如不符请反馈。
+    {
+    id: "cufe",
+    school: "中央财经大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:00", end: "10:45" },
+      { period: 4, start: "10:55", end: "11:40" },
+      { period: 5, start: "11:50", end: "12:35" },
+      { period: 6, start: "12:45", end: "13:30" },
+      { period: 7, start: "14:00", end: "14:45" },
+      { period: 8, start: "14:55", end: "15:40" },
+      { period: 9, start: "16:00", end: "16:45" },
+      { period: 10, start: "16:55", end: "17:40" },
+      { period: 11, start: "17:50", end: "18:35" },
+      { period: 12, start: "19:20", end: "20:05" },
+      { period: 13, start: "20:15", end: "21:00" },
+    ],
+  },
+    // 西南财经大学：12 小节制（每节 45 分钟，柳林/光华校区统一）。
+    // 来源：教务处官网《教学作息时间安排表》（jwc.swufe.edu.cn，2014-09 发布）图片 OCR，
+    // 与豆丁转载、知乎问答摘要三方逐字一致。
+    {
+    id: "swufe",
+    school: "西南财经大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:30", end: "09:15" },
+      { period: 2, start: "09:25", end: "10:10" },
+      { period: 3, start: "10:20", end: "11:05" },
+      { period: 4, start: "11:15", end: "12:00" },
+      { period: 5, start: "13:00", end: "13:45" },
+      { period: 6, start: "13:55", end: "14:40" },
+      { period: 7, start: "14:50", end: "15:35" },
+      { period: 8, start: "15:45", end: "16:30" },
+      { period: 9, start: "16:40", end: "17:25" },
+      { period: 10, start: "18:30", end: "19:15" },
+      { period: 11, start: "19:25", end: "20:10" },
+      { period: 12, start: "20:20", end: "21:05" },
+    ],
+  },
+    // 华北电力大学：10 小节制（北京校部与保定校区官方口径统一，每节 45 分钟）。
+    // 来源：教务处官网「教务服务·作息时间」（jwc.ncepu.edu.cn）与研究生院作息页双源逐项一致。
+    {
+    id: "ncepu",
+    school: "华北电力大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:00", end: "10:45" },
+      { period: 4, start: "10:55", end: "11:40" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:00", end: "16:45" },
+      { period: 8, start: "16:55", end: "17:40" },
+      { period: 9, start: "19:00", end: "19:45" },
+      { period: 10, start: "19:55", end: "20:40" },
+    ],
+  },
+    // 南京师范大学：12 小节制（每节 40 分钟，仙林/随园/紫金校区统一）。
+    // 来源：教务处官网《南京师范大学作息时间表》与拾光课程表适配器（github.com/kuailiaojie/classtable
+    // NJNU）+ 教科院 2026 方案多源一致。中北学院（独立学院）作息不同，不适用本表。
+    {
+    id: "njnu",
+    school: "南京师范大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:40" },
+      { period: 2, start: "08:45", end: "09:25" },
+      { period: 3, start: "09:40", end: "10:20" },
+      { period: 4, start: "10:35", end: "11:15" },
+      { period: 5, start: "11:20", end: "12:00" },
+      { period: 6, start: "13:30", end: "14:10" },
+      { period: 7, start: "14:15", end: "14:55" },
+      { period: 8, start: "15:10", end: "15:50" },
+      { period: 9, start: "15:55", end: "16:35" },
+      { period: 10, start: "18:30", end: "19:10" },
+      { period: 11, start: "19:20", end: "20:00" },
+      { period: 12, start: "20:10", end: "20:50" },
+    ],
+  },
+    // 华南师范大学：10 小节制（石牌/滨海汕尾校区，每节 40 分钟，上午 8:30 起）。
+    // 来源：官方《上课作息时间表.doc》（pd.scnu.edu.cn）+ 开源课表应用内置官方作息交叉一致。
+    // 大学城校区下午为 14:00-14:40 / 14:50-15:30 / 15:40-16:20 / 16:30-17:10；
+    // 南海校区上午 8:15 起、晚上 19:40 起。以上校区用户如不符请反馈或用自定义作息。
+    {
+    id: "scnu",
+    school: "华南师范大学",
+    variant: "石牌校区",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:30", end: "09:10" },
+      { period: 2, start: "09:20", end: "10:00" },
+      { period: 3, start: "10:20", end: "11:00" },
+      { period: 4, start: "11:10", end: "11:50" },
+      { period: 5, start: "14:30", end: "15:10" },
+      { period: 6, start: "15:20", end: "16:00" },
+      { period: 7, start: "16:10", end: "16:50" },
+      { period: 8, start: "17:00", end: "17:40" },
+      { period: 9, start: "19:00", end: "19:40" },
+      { period: 10, start: "19:50", end: "20:30" },
+    ],
+  },
+    // 湖南师范大学：13 小节制（每节 45 分钟；第 5 节 12:45 即开为教务系统特殊排版，与第 6 节无间隔）。
+    // 来源：拾光课程表适配器 HUNNU 预设（适配强智教务系统）；晚间第 11-13 节 19:00-21:35
+    // 经教务处 2025-09 通识选修课通知独立佐证。
+    {
+    id: "hunnu",
+    school: "湖南师范大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:00", end: "10:45" },
+      { period: 4, start: "10:55", end: "11:40" },
+      { period: 5, start: "12:45", end: "13:30" },
+      { period: 6, start: "13:30", end: "14:15" },
+      { period: 7, start: "14:30", end: "15:15" },
+      { period: 8, start: "15:25", end: "16:10" },
+      { period: 9, start: "16:30", end: "17:15" },
+      { period: 10, start: "17:25", end: "18:10" },
+      { period: 11, start: "19:00", end: "19:45" },
+      { period: 12, start: "19:55", end: "20:40" },
+      { period: 13, start: "20:50", end: "21:35" },
+    ],
+  },
+    // 安徽大学：13 小节制（磬苑校区等全校统一，每节 45 分钟）。
+    // 来源：两个独立校园应用（AHU-AIO、Ahu_Plus）内置节次完全一致，均声明与教务处默认布局对齐。
+    {
+    id: "ahu",
+    school: "安徽大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:50", end: "09:35" },
+      { period: 3, start: "09:50", end: "10:35" },
+      { period: 4, start: "10:40", end: "11:25" },
+      { period: 5, start: "11:30", end: "12:15" },
+      { period: 6, start: "14:00", end: "14:45" },
+      { period: 7, start: "14:50", end: "15:35" },
+      { period: 8, start: "15:50", end: "16:35" },
+      { period: 9, start: "16:40", end: "17:25" },
+      { period: 10, start: "17:30", end: "18:15" },
+      { period: 11, start: "19:00", end: "19:45" },
+      { period: 12, start: "19:50", end: "20:35" },
+      { period: 13, start: "20:40", end: "21:25" },
+    ],
+  },
+    // 西北农林科技大学：11 小节制，冬夏令两套（1-4 节相同，下午/晚上按季节切换）。
+    // 来源：南大课表开源项目 schoolList（NWAFU 预设，逐年维护季节切换）+ NapTable 双源一致，
+    // 并经西农学生开发的飞书工具佐证；晚间节次存在 11 节制与 12 节制两种口径，如不符请反馈。
+    {
+    id: "nwafu-winter",
+    school: "西北农林科技大学",
+    variant: "冬令作息（10/1–4/30）",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:10", end: "10:55" },
+      { period: 4, start: "11:05", end: "11:50" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:00", end: "16:45" },
+      { period: 8, start: "16:55", end: "17:40" },
+      { period: 9, start: "19:00", end: "19:45" },
+      { period: 10, start: "19:50", end: "20:35" },
+      { period: 11, start: "20:40", end: "21:35" },
+    ],
+  },
+    {
+    id: "nwafu-summer",
+    school: "西北农林科技大学",
+    variant: "夏令作息（5/1–9/30）",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:10", end: "10:55" },
+      { period: 4, start: "11:05", end: "11:50" },
+      { period: 5, start: "14:30", end: "15:15" },
+      { period: 6, start: "15:25", end: "16:10" },
+      { period: 7, start: "16:30", end: "17:15" },
+      { period: 8, start: "17:25", end: "18:10" },
+      { period: 9, start: "19:30", end: "20:15" },
+      { period: 10, start: "20:20", end: "21:05" },
+      { period: 11, start: "21:10", end: "21:55" },
+    ],
+  },
 ];
 
 const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(
