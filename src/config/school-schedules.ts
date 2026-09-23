@@ -1464,6 +1464,26 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 10, start: "19:55", end: "20:40" },
     ],
   },
+    // 安徽财经大学：10 小节制（5 大节：1-2/3-4/5-6/7-8/9-10，每节 45 分钟）。
+    // 来源：在校生提供的教务系统（URP 高校教务管理系统）课表页节次时间表头截图（2026-09），
+    // 与上午 8:00 起的官方作息口径一致。
+    {
+    id: "aufe",
+    school: "安徽财经大学",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:00", end: "08:45" },
+      { period: 2, start: "08:55", end: "09:40" },
+      { period: 3, start: "10:10", end: "10:55" },
+      { period: 4, start: "11:05", end: "11:50" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:10", end: "16:55" },
+      { period: 8, start: "17:05", end: "17:50" },
+      { period: 9, start: "19:00", end: "19:45" },
+      { period: 10, start: "19:55", end: "20:40" },
+    ],
+  },
 ];
 
 const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(
