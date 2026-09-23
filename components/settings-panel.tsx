@@ -134,7 +134,7 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
             ariaLabel="我的学校"
             placeholder="输入学校名筛选，如：复旦"
             emptyText="没有找到这所学校"
-            emptyFooter={schoolPickerEmptyFooter(() => { setScheduleId("custom"); setSaved(false); setSaveError(""); })}
+            emptyFooter={schoolPickerEmptyFooter(() => router.push("/custom-school?return=/settings"))}
             groups={[
               { label: "按小节排课（一节 40–50 分钟）", options: listSchedulePresets().filter((preset) => preset.kind === "period").map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
               { label: "按大节排课（一节 80 分钟以上）", options: listSchedulePresets().filter((preset) => preset.kind === "block").map((preset) => ({ value: preset.id, label: preset.school + (preset.variant ? "（" + preset.variant + "）" : "") })) },
@@ -142,7 +142,7 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
             ]}
             onChange={(next) => { setScheduleId(next); setSaved(false); setSaveError(""); }}
           />
-          {scheduleId === "custom" && <p className="settings-note">已选「其他学校」：请到<a href="/import">导入课表</a>页填写作息时间表（每节课的开始与结束时间），然后手动添加课程。</p>}
+          {scheduleId === "custom" && <p className="settings-note">已选「其他学校」：<a href="/custom-school?return=/settings">完成自定义作息设置</a>（填好每节课的起止时间即可导入课表）；学校会提交人工审核，收录后自动切换为正式预设。</p>}
         </section>
 
         <section className="settings-card" aria-labelledby="settings-privacy">

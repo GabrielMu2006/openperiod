@@ -2,8 +2,9 @@ import { PkuExcelImporter } from "@/src/server/importers/pku-excel";
 import { createImportPreview } from "@/src/server/imports/data";
 import { getCurrentUser } from "@/src/server/auth/session";
 import { getScheduleById, toScheduleDTO, validateCustomRows, type ScheduleDTO, type SchedulePreset } from "@/src/config/school-schedules";
+import { DEFAULT_SEMESTER } from "@/src/config/semester";
 import { errorResponse, HttpError } from "@/src/server/http";
-import { ensureDefaultSemester } from "@/src/server/semesters/data";
+import { ensureDefaultSemester, getUserCustomRows } from "@/src/server/semesters/data";
 
 export const runtime = "nodejs";
 
@@ -37,8 +38,13 @@ export async function POST(request: Request) {
       } catch {
         throw new HttpError(400, "自定义作息格式无效");
       }
+      // 前端未显式携带节次时间时，回退到用户已保存的自定义作息（自定义学校向导落库的那份）
+      if (!rows.length) {
+        const saved = await getUserCustomRows(user.id, DEFAULT_SEMESTER.academicYear, DEFAULT_SEMESTER.semester);
+        if (saved?.length) rows = saved.map((row) => ({ start: row.start, end: row.end }));
+      }
       const verdict = validateCustomRows(rows);
-      if (!verdict.ok) throw new HttpError(400, verdict.message ?? "自定义作息无效");
+      if (!verdict.ok) throw new HttpError(400, "请先完成自定义作息设置（填好每节课的起止时间）");
       // 预览阶段只把自定义行随载荷暂存，确认导入时才写入用户自己的作息（SCH-01）
       customRows = rows;
       preset = {

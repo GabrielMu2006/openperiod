@@ -139,6 +139,23 @@ export const customSchedules = pgTable("custom_schedules", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [unique("custom_schedules_user_term_unique").on(table.userId, table.academicYear, table.semester)]);
 
+// 学校候选提交池（SCH-03）：自定义学校向导收集「学校名称 + 逐节作息」，人工审核后收录为正式预设；
+// 收录发版后可对提交者执行「完成迁移」，把 ta 从自定义作息切到新学校。
+export const schoolSubmissions = pgTable("school_submissions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  schoolName: varchar("school_name", { length: 80 }).notNull(),
+  scheduleRows: jsonb("schedule_rows").$type<{ start: string; end: string }[]>().notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  reviewNote: text("review_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("school_submissions_user_id_idx").on(table.userId),
+  index("school_submissions_status_idx").on(table.status),
+  check("school_submissions_status_check", sql`${table.status} in ('pending', 'approved', 'rejected', 'released')`),
+]);
+
 export const groups = pgTable(
   "groups",
   {

@@ -6,15 +6,19 @@ import { getDatabase } from "@/src/server/db";
 import { users } from "@/src/server/db/schema";
 import { validateCustomRows } from "@/src/config/school-schedules";
 import { ensureDefaultSemester, saveUserCustomSchedule } from "@/src/server/semesters/data";
+import { submitSchoolCandidate } from "@/src/server/school-submissions/data";
 
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
   rows: z.array(z.object({ start: z.string(), end: z.string() })).min(1).max(16),
+  // 可选：附带学校名称时，同时向后台候选池提交一条「学校候选」等待人工审核（SCH-03）
+  schoolName: z.string().trim().min(2).max(40).optional(),
 });
 
-// 「其他学校」手动流程（SCH-01）：只保存作息时间表（每节开始/结束时间）并把用户切到
-// custom 网格；课表内容由用户在「我的课表」手动添加。不触碰任何已有课程数据。
+// 「其他学校」手动流程（SCH-01）：保存作息时间表（每节开始/结束时间）并把用户切到
+// custom 网格；课表内容由用户在「我的课表」手动添加或用 Excel/AI 按该网格导入。
+// 不触碰任何已有课程数据。
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -24,6 +28,10 @@ export async function POST(request: Request) {
     const rows = parsed.data.rows.map((row) => ({ start: row.start.trim(), end: row.end.trim() }));
     const verdict = validateCustomRows(rows);
     if (!verdict.ok) return Response.json({ error: verdict.message }, { status: 400 });
+    if (parsed.data.schoolName) {
+      const result = await submitSchoolCandidate(user.id, parsed.data.schoolName, rows);
+      return Response.json({ ok: true, submission: result });
+    }
     await ensureDefaultSemester("custom");
     await saveUserCustomSchedule(user.id, rows);
     await getDatabase()

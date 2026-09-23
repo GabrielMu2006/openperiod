@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   extractCoursesWithAi: vi.fn(),
   createImportPreview: vi.fn(),
   ensureDefaultSemester: vi.fn(),
+  getUserCustomRows: vi.fn(),
 }));
 
 vi.mock("@/src/server/auth/session", () => ({ getCurrentUser: mocks.getCurrentUser }));
@@ -16,7 +17,10 @@ vi.mock("@/src/server/importers/ai-extract", () => ({
 }));
 vi.mock("@/src/server/importers/ai-quota", () => ({ consumeAiImportAttempt: mocks.consumeAiImportAttempt }));
 vi.mock("@/src/server/imports/data", () => ({ createImportPreview: mocks.createImportPreview }));
-vi.mock("@/src/server/semesters/data", () => ({ ensureDefaultSemester: mocks.ensureDefaultSemester }));
+vi.mock("@/src/server/semesters/data", () => ({
+  ensureDefaultSemester: mocks.ensureDefaultSemester,
+  getUserCustomRows: mocks.getUserCustomRows,
+}));
 
 import { POST } from "@/app/api/import/ai/route";
 
@@ -29,6 +33,7 @@ beforeEach(() => {
   mocks.assertAiExtractionConfigured.mockReturnValue(undefined);
   mocks.consumeAiImportAttempt.mockResolvedValue({ limit: 10, resetAt: new Date() });
   mocks.ensureDefaultSemester.mockResolvedValue({ weekCount: 20 });
+  mocks.getUserCustomRows.mockResolvedValue(null);
   mocks.extractCoursesWithAi.mockResolvedValue({ courses: [], warnings: [] });
   mocks.createImportPreview.mockImplementation(async (_userId, payload) => ({ id: "preview-id", ...payload }));
 });

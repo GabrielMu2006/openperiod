@@ -41,6 +41,26 @@ type AdminFeedback = {
 
 type FeedbackList = { total: number; unhandled: number; truncated: boolean; items: AdminFeedback[] };
 
+type AdminSubmission = {
+  id: string;
+  schoolName: string;
+  scheduleRows: { start: string; end: string }[];
+  status: "pending" | "approved" | "rejected" | "released";
+  reviewNote: string | null;
+  createdAt: string;
+  nickname: string | null;
+  email: string | null;
+};
+
+type SubmissionList = { total: number; pending: number; items: AdminSubmission[] };
+
+const submissionStatusLabels: Record<AdminSubmission["status"], string> = {
+  pending: "待审核",
+  approved: "已通过（待收录迁移）",
+  rejected: "已拒绝",
+  released: "已收录并迁移",
+};
+
 type Overview = {
   generatedAt: string;
   accounts: { total: number; truncated: boolean; items: AdminAccount[] };
@@ -75,6 +95,9 @@ export function AdminDashboard() {
   const [groupQuery, setGroupQuery] = useState("");
   const [feedbackList, setFeedbackList] = useState<FeedbackList | null>(null);
   const [feedbackPendingId, setFeedbackPendingId] = useState("");
+  const [submissionList, setSubmissionList] = useState<SubmissionList | null>(null);
+  const [submissionPendingId, setSubmissionPendingId] = useState("");
+  const [releasePresetId, setReleasePresetId] = useState<Record<string, string>>({});
   const [schoolFilter, setSchoolFilter] = useState("all");
 
   const load = useCallback(async (key: string) => {
@@ -110,6 +133,42 @@ export function AdminDashboard() {
     }
   }, []);
 
+  const loadSubmissions = useCallback(async (key: string) => {
+    try {
+      const response = await fetch("/api/admin/school-submissions", { headers: { "x-admin-key": key }, cache: "no-store" });
+      if (!response.ok) return;
+      setSubmissionList((await response.json()) as SubmissionList);
+    } catch {
+      /* 候选列表加载失败不打断主视图 */
+    }
+  }, []);
+
+  const submissionAction = useCallback(async (id: string, body: { action: "approve" | "reject"; note?: string } | { action: "release"; presetId: string }) => {
+    if (!savedKey) return;
+    setSubmissionPendingId(id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/school-submissions/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-admin-key": savedKey },
+        body: JSON.stringify(body),
+      });
+      const payload = (await response.json()) as { error?: string; released?: unknown };
+      if (!response.ok) {
+        setError(payload.error ?? "操作失败，请稍后重试。");
+        return;
+      }
+      await loadSubmissions(savedKey);
+      if (body.action === "release") {
+        window.alert(`迁移完成，已切换到预设「${body.presetId}」。`);
+      }
+    } catch {
+      setError("网络错误，请检查连接后重试。");
+    } finally {
+      setSubmissionPendingId("");
+    }
+  }, [savedKey, loadSubmissions]);
+
   const markHandled = useCallback(async (id: string, handled: boolean) => {
     if (!savedKey) return;
     setFeedbackPendingId(id);
@@ -137,6 +196,7 @@ export function AdminDashboard() {
       setSavedKey(stored);
       void load(stored);
       void loadFeedback(stored);
+      void loadSubmissions(stored);
     }
   }, [load, loadFeedback]);
 
@@ -148,6 +208,7 @@ export function AdminDashboard() {
       setSavedKey(trimmed);
       setKeyInput("");
       void loadFeedback(trimmed);
+      void loadSubmissions(trimmed);
     }
   }
 
@@ -220,7 +281,7 @@ export function AdminDashboard() {
         </div>
         <div className="admin-header-actions">
           <span className="admin-badge">只读</span>
-          <button type="button" onClick={() => { void load(savedKey); void loadFeedback(savedKey); }} disabled={busy}>
+          <button type="button" onClick={() => { void load(savedKey); void loadFeedback(savedKey); void loadSubmissions(savedKey); }} disabled={busy}>
             {busy ? "刷新中…" : "刷新"}
           </button>
           <button type="button" className="admin-quiet" onClick={signOut}>
@@ -245,6 +306,7 @@ export function AdminDashboard() {
             <div><strong>{accounts?.items.filter((item) => item.courseCount > 0).length ?? 0}</strong><span>已录课表</span></div>
             <div><strong>{groupsList?.total ?? 0}</strong><span>群组总数</span></div>
             <div><strong>{feedbackList?.unhandled ?? 0}</strong><span>未处理反馈</span></div>
+            <div><strong>{submissionList?.pending ?? 0}</strong><span>待审核学校候选</span></div>
           </div>
 
           <section className="admin-card" aria-labelledby="admin-accounts">
@@ -323,6 +385,42 @@ export function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </section>
+
+          <section className="admin-card" aria-labelledby="admin-submissions">
+            <div className="admin-card-head">
+              <h2 id="admin-submissions">学校候选（{submissionList?.total ?? 0}）</h2>
+              <small className="admin-note">来自自定义学校向导；人工核验官方作息 → 改代码收录发版 → 回来点「完成迁移」</small>
+            </div>
+            {(submissionList?.items.length ?? 0) === 0 ? (
+              <p className="admin-note">还没有收到学校候选。</p>
+            ) : (
+              <ul className="feedback-admin-list">
+                {submissionList!.items.map((item) => (
+                  <li key={item.id} className={item.status === "released" ? "handled" : ""}>
+                    <div className="feedback-admin-head">
+                      <strong>{item.schoolName}</strong>
+                      <small>{item.nickname ?? "未知用户"} · {item.email ?? ""} · {formatTime(item.createdAt)} · {item.scheduleRows.length} 节 · {submissionStatusLabels[item.status]}</small>
+                    </div>
+                    <p className="submission-times">{item.scheduleRows.map((row, index) => `第${index + 1}节 ${row.start}–${row.end}`).join("；")}</p>
+                    {item.reviewNote && <p className="admin-note">备注：{item.reviewNote}</p>}
+                    {item.status === "pending" && (
+                      <div className="submission-actions">
+                        <button type="button" disabled={submissionPendingId === item.id} onClick={() => void submissionAction(item.id, { action: "approve" })}>通过审核</button>
+                        <button type="button" disabled={submissionPendingId === item.id} onClick={() => { const note = window.prompt("拒绝原因（可选）："); void submissionAction(item.id, { action: "reject", note: note ?? undefined }); }}>拒绝</button>
+                      </div>
+                    )}
+                    {item.status === "approved" && (
+                      <div className="submission-actions">
+                        <input value={releasePresetId[item.id] ?? ""} onChange={(event) => setReleasePresetId((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="代码里的预设 id，如 lzxk" aria-label="预设 id" style={{ maxWidth: 220 }} />
+                        <button type="button" disabled={submissionPendingId === item.id || !(releasePresetId[item.id] ?? "").trim()} onClick={() => { const presetId = (releasePresetId[item.id] ?? "").trim(); if (window.confirm(`确认已收录发版，并把提交者迁移到「${presetId}」？其课程将整体搬到新学校学期。`)) void submissionAction(item.id, { action: "release", presetId }); }}>完成迁移</button>
+                        <button type="button" disabled={submissionPendingId === item.id} onClick={() => void submissionAction(item.id, { action: "reject" })}>改回拒绝</button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 

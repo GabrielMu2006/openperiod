@@ -175,7 +175,7 @@ export function IdentityForm({ initialMode = "login" }: { initialMode?: Mode }) 
           ]}
           onChange={setSchoolId}
         />
-        <small style={{ color: "var(--text-tertiary)", fontSize: 12 }}>决定课表节次网格与导入模板；选「其他学校」将手动添加课表（只能填写每节课的开始与结束时间），之后可在设置中修改。</small>
+        <small style={{ color: "var(--text-tertiary)", fontSize: 12 }}>决定课表节次网格与导入模板；选「其他学校」进入应用后会引导你完成设置：填好每节课的起止时间并提交学校名称，即可导入课表，学校也会进入人工审核队列。</small>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button type="submit" disabled={pending || !nickname.trim()}>{pending ? "正在保存…" : "完成并进入"}</button>
         <div className="code-actions">

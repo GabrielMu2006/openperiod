@@ -135,6 +135,11 @@ export function MySchedule() {
   const [showInfoBanner, setShowInfoBanner] = useState(false);
   const infoRef = useDialogBehavior(infoOpen, () => setInfoOpen(false), false);
   const scheduleKey = schedule ? (schedule.semester.schedule?.id ?? schedule.semester.scheduleId ?? "pku") : "pku";
+  // 账号层面的学校设置：null = 从未设置；"custom" = 自定义作息（可能还没走完向导）
+  const [userScheduleId, setUserScheduleId] = useState<string | null>(null);
+  const [firstSchoolCardDismissed, setFirstSchoolCardDismissed] = useState(true);
+  const [customCardDismissed, setCustomCardDismissed] = useState(false);
+  const customNeedsSetup = Boolean(schedule && userScheduleId === "custom" && mySchedule.school.includes("未设置作息"));
 
   // 和共同空闲保持一致：桌面默认周总览，手机默认按天。
   useEffect(() => {
@@ -182,10 +187,12 @@ export function MySchedule() {
       const targetWeek = week ?? (Number.isInteger(urlWeek) && urlWeek >= 1 && urlWeek <= 52 ? urlWeek : null);
       const response = await fetch(`/api/schedule${targetWeek === null ? "" : `?week=${targetWeek}`}`, { signal });
       if (response.status === 401) return router.replace("/login");
-      const body = await response.json() as { schedule?: ScheduleDTO; error?: string };
+      const body = await response.json() as { schedule?: ScheduleDTO; userScheduleId?: string | null; error?: string };
       if (!response.ok || !body.schedule) throw new Error(body.error ?? "无法读取个人课表");
       if (requestId !== loadRequestRef.current) return;
       setSchedule(body.schedule);
+      setUserScheduleId(body.userScheduleId ?? null);
+      setFirstSchoolCardDismissed(localStorage.getItem("op-first-school-card") === "1");
       setWeek((current) => current ?? targetWeek ?? body.schedule!.week);
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
@@ -308,6 +315,14 @@ export function MySchedule() {
         <div className="schedule-heading"><div><p className="eyebrow">MY SCHEDULE</p><h1>我的课表</h1><p>{schedule ? `${schedule.semester.academicYear} ${schedule.semester.semester}` : "管理课程和私人忙碌时间"}</p></div><div className="schedule-heading-actions"><button type="button" disabled={!schedule || loading} onClick={() => openScheduleInfo()}>查看课表信息</button><a href="/import">导入 Excel</a><button type="button" disabled={!schedule || loading} onClick={() => setSelection({ type: "course" })}><Plus className="ui-icon" weight="bold" />添加课程</button><button className="busy-action" type="button" disabled={!schedule || loading} onClick={() => setSelection({ type: "busy" })}><Plus className="ui-icon" weight="bold" />标记忙碌</button></div></div>
         {error && <div className="page-error" role="alert">{error}<button type="button" onClick={() => { setError(""); setRetryKey((key) => key + 1); }}>重试</button></div>}
         {showInfoBanner && schedule && <div className="schedule-info-banner" role="status"><span>你的课表按「{schedule.semester.schedule?.school ?? "北京大学"}」作息显示，建议核对节次与时间是否正确。</span><span className="banner-actions"><button type="button" onClick={() => openScheduleInfo()}>查看课表信息</button><button type="button" className="link-button" onClick={() => { localStorage.setItem("op-schedule-info-seen", scheduleKey); setShowInfoBanner(false); }}>我知道了</button></span></div>}
+        {!loading && schedule && userScheduleId === null && !firstSchoolCardDismissed && <div className="school-guide-card" role="note">
+          <div><strong>还没选择你的学校？</strong><span>选择学校后，课表会按贵校作息显示；不在列表里也可以自定义作息、照常导入课表（推荐电脑操作）。</span></div>
+          <span className="banner-actions"><a className="primary-action" href="/custom-school?return=/schedule">自定义学校作息</a><a href="/settings">去选择学校</a><button type="button" className="link-button" onClick={() => { localStorage.setItem("op-first-school-card", "1"); setFirstSchoolCardDismissed(true); }}>我知道了</button></span>
+        </div>}
+        {!loading && customNeedsSetup && !customCardDismissed && <div className="school-guide-card" role="note">
+          <div><strong>完成你的自定义学校设置</strong><span>还差一步：填好每节课的起止时间和学校名称并提交，之后就能导入课表（推荐电脑操作）。</span></div>
+          <span className="banner-actions"><a className="primary-action" href="/custom-school?return=/schedule">继续设置</a><button type="button" className="link-button" onClick={() => setCustomCardDismissed(true)}>暂不设置</button></span>
+        </div>}
         {notice && <div className="page-success" role="status">{notice.text}{notice.undo && <button type="button" className="link-button" onClick={notice.undo}>撤销</button>}{snapshotId && <button type="button" className="link-button" disabled={restoring} onClick={restoreSnapshot}>{restoring ? "恢复中…" : "恢复导入前的课表"}</button>}</div>}
         {schedule && week !== null ? <div className={`schedule-results${loading ? " is-updating" : ""}`} aria-busy={loading}>
           {loading && <div className="update-status" role="status" aria-live="polite" aria-atomic="true"><span className="update-status-track" aria-hidden="true"><i /></span>正在更新第 {week} 周课表…</div>}
@@ -318,7 +333,7 @@ export function MySchedule() {
               <button type="button" className={viewMode === "day" ? "on" : ""} aria-pressed={viewMode === "day"} onClick={() => setViewMode("day")}>按天</button>
             </div></div>}
           </div>
-          {!hasScheduleEntries ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，或手动添加第一门课程。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button></div>{schedule.confirmedEmpty ? <p className="confirmed-empty-note">已确认本学期无课：群组共同空闲会按你「无课（有空）」参与。<button type="button" className="link-button" onClick={() => setConfirmedEmpty(false)}>取消确认</button></p> : <p className="confirmed-empty-note">本学期真的没有课？<button type="button" className="link-button" onClick={() => setConfirmedEmpty(true)}>确认无课</button>，否则群组里你的状态会显示「待确认」。</p>}</section> : <>
+          {!hasScheduleEntries ? <section className="my-schedule-empty"><span className="logo-mark"><i /><i /></span><h2>你还没有课表</h2><p>上传 Excel，手动添加第一门课程，或先自定义学校作息。</p><div><a href="/import">上传 Excel</a><button type="button" onClick={() => setSelection({ type: "course" })}>手动添加</button><a href="/custom-school?return=/schedule">其他学校？自定义作息</a></div>{schedule.confirmedEmpty ? <p className="confirmed-empty-note">已确认本学期无课：群组共同空闲会按你「无课（有空）」参与。<button type="button" className="link-button" onClick={() => setConfirmedEmpty(false)}>取消确认</button></p> : <p className="confirmed-empty-note">本学期真的没有课？<button type="button" className="link-button" onClick={() => setConfirmedEmpty(true)}>确认无课</button>，否则群组里你的状态会显示「待确认」。</p>}</section> : <>
             <p className="my-grid-hint">点空白时段可快速标记「忙碌」，点课程或忙碌块可查看详情。</p>
             {viewMode === "week" ? (
               <div className="my-grid-scroller" onScroll={(event) => { lastScrollAtRef.current = Date.now(); if (swipeHintVisible && event.currentTarget.scrollLeft > 12) setSwipeHintVisible(false); }}><div className="my-timetable">

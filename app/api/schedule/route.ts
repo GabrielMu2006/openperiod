@@ -9,7 +9,8 @@ export async function GET(request: Request) {
     if (!user) return Response.json({ error: "未登录" }, { status: 401 });
     const parsed = scheduleQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) return Response.json({ error: "教学周无效" }, { status: 400 });
-    return Response.json({ schedule: await getMySchedule(user.id, parsed.data.week) });
+    // userScheduleId 供前端区分「从未设置学校」「自定义作息」等状态，驱动首登引导卡片
+    return Response.json({ schedule: await getMySchedule(user.id, parsed.data.week), userScheduleId: user.scheduleId });
   } catch (error) {
     return errorResponse(error);
   }

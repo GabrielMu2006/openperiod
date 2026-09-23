@@ -6,7 +6,8 @@ import { getCurrentUser } from "@/src/server/auth/session";
 import { getScheduleById, toScheduleDTO, validateCustomRows, type ScheduleDTO, type SchedulePreset } from "@/src/config/school-schedules";
 import type { ImportCourseDraft, ImportPreviewPayload, ImportWarning } from "@/src/domain/import";
 import { errorResponse, HttpError } from "@/src/server/http";
-import { ensureDefaultSemester } from "@/src/server/semesters/data";
+import { DEFAULT_SEMESTER } from "@/src/config/semester";
+import { ensureDefaultSemester, getUserCustomRows } from "@/src/server/semesters/data";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -23,7 +24,7 @@ function isCustomRow(value: unknown): value is CustomRow {
   return typeof row.start === "string" && typeof row.end === "string";
 }
 
-function resolveImportSchedule(scheduleIdInput: unknown, customRowsInput: unknown): {
+function resolveImportSchedule(scheduleIdInput: unknown, customRowsInput: unknown, savedRows?: CustomRow[]): {
   preset: SchedulePreset | ScheduleDTO;
   customRows?: CustomRow[];
 } {
@@ -31,10 +32,19 @@ function resolveImportSchedule(scheduleIdInput: unknown, customRowsInput: unknow
   if (!scheduleId) throw new HttpError(400, "请选择学校作息");
 
   if (scheduleId === "custom") {
-    if (!Array.isArray(customRowsInput) || !customRowsInput.every(isCustomRow)) {
+    // 优先用前端显式携带的节次时间；没有则回退到用户已保存的自定义作息（自定义学校向导落库的那份）
+    let explicit: CustomRow[] | undefined;
+    if (customRowsInput !== undefined && customRowsInput !== null && !Array.isArray(customRowsInput)) {
       throw new HttpError(400, "自定义作息格式无效");
     }
-    const customRows = customRowsInput.map((row) => ({ start: row.start.trim(), end: row.end.trim() }));
+    if (Array.isArray(customRowsInput) && customRowsInput.length > 0) {
+      if (!customRowsInput.every(isCustomRow)) throw new HttpError(400, "自定义作息格式无效");
+      explicit = customRowsInput.map((row) => ({ start: row.start.trim(), end: row.end.trim() }));
+    }
+    const customRows = explicit ?? savedRows;
+    if (!customRows?.length) {
+      throw new HttpError(400, "请先完成自定义作息设置（填好每节课的起止时间）");
+    }
     const verdict = validateCustomRows(customRows);
     if (!verdict.ok) throw new HttpError(400, verdict.message ?? "自定义作息无效");
     return {
@@ -61,7 +71,12 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { mode?: string; text?: string; image?: string; scheduleId?: unknown; customRows?: unknown };
     const mode = body.mode === "image" ? "image" : body.mode === "text" ? "text" : null;
     if (!mode) throw new HttpError(400, "请选择识别方式");
-    const { preset, customRows } = resolveImportSchedule(body.scheduleId, body.customRows);
+    let savedRows: CustomRow[] | undefined;
+    if (body.scheduleId === "custom" && !Array.isArray(body.customRows)) {
+      const saved = await getUserCustomRows(user.id, DEFAULT_SEMESTER.academicYear, DEFAULT_SEMESTER.semester);
+      savedRows = saved?.map((row) => ({ start: row.start, end: row.end }));
+    }
+    const { preset, customRows } = resolveImportSchedule(body.scheduleId, body.customRows, savedRows);
 
     let content: string;
     if (mode === "text") {
