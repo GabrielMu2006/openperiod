@@ -1484,6 +1484,26 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 10, start: "19:55", end: "20:40" },
     ],
   },
+    // 云南经济管理学院：10 小节制（每节 45 分钟，安宁/海源校区；第 2→3、6→7 节间为 20 分钟大课间）。
+    // 来源：学校官方《本科教学工作合格评估知识学习手册（学生版）》（2024-04，第 14 页）作息时间安排表，
+    // 项目所有者提供并确认（2026-09）。如新学期调整请以教务处最新通知为准并反馈。
+    {
+    id: "ynjgy",
+    school: "云南经济管理学院",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:30", end: "09:15" },
+      { period: 2, start: "09:20", end: "10:05" },
+      { period: 3, start: "10:25", end: "11:10" },
+      { period: 4, start: "11:15", end: "12:00" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:50", end: "15:35" },
+      { period: 7, start: "15:55", end: "16:40" },
+      { period: 8, start: "16:45", end: "17:30" },
+      { period: 9, start: "19:00", end: "19:45" },
+      { period: 10, start: "19:50", end: "20:35" },
+    ],
+  },
 ];
 
 const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(
