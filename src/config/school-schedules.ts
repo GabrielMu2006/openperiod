@@ -1444,6 +1444,26 @@ const A_CLASS_PRESETS: SchedulePreset[] = [
       { period: 11, start: "21:10", end: "21:55" },
     ],
   },
+    // 兰州信息科技学院：10 小节制（4 大节：上午 2 + 下午 2 + 晚间 2 大节，每节 45 分钟）。
+    // 来源：教务处官网《兰州信息科技学院2026年秋季学期作息时间表》（jwc.lzxk.edu.cn/jxfw/zxsj.htm，
+    // 官方图片表，2026-09 抓取读取）。作息按学期发布，如新学期调整请以教务处最新表为准并反馈。
+    {
+    id: "lzxk",
+    school: "兰州信息科技学院",
+    kind: "period",
+    rows: [
+      { period: 1, start: "08:30", end: "09:15" },
+      { period: 2, start: "09:25", end: "10:10" },
+      { period: 3, start: "10:30", end: "11:15" },
+      { period: 4, start: "11:25", end: "12:10" },
+      { period: 5, start: "14:00", end: "14:45" },
+      { period: 6, start: "14:55", end: "15:40" },
+      { period: 7, start: "16:00", end: "16:45" },
+      { period: 8, start: "16:55", end: "17:40" },
+      { period: 9, start: "19:00", end: "19:45" },
+      { period: 10, start: "19:55", end: "20:40" },
+    ],
+  },
 ];
 
 const PRESETS: Record<string, SchedulePreset> = Object.fromEntries(
