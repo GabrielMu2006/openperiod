@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { generateInviteCode, normalizeInviteCode } from "@/src/domain/groups";
+import { DEFAULT_SEMESTER } from "@/src/config/semester";
 import type { MemberScheduleState, PrivacyLevel } from "@/src/domain/schedule";
 import { getTeachingWeek } from "@/src/config/semester";
 import { scheduleFromSemester } from "@/src/config/school-schedules";
@@ -11,10 +12,11 @@ import {
   groupPrivacyOverrides,
   groups,
   semesters,
+  userSemesterSettings,
   users,
 } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
-import { ensureDefaultSemester, getUserCustomRows, summarizeMemberSchedules } from "@/src/server/semesters/data";
+import { ensureDefaultSemester, getUserCustomRows, getUserSemesterSetting, summarizeMemberSchedules } from "@/src/server/semesters/data";
 
 function isUniqueViolation(error: unknown) {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "23505");
@@ -55,6 +57,24 @@ export async function listGroupsForUser(userId: string, options: { includeArchiv
       options.includeArchived ? undefined : isNull(groups.archivedAt),
     ));
 
+  // 群组学期视图跟随群主的开学日/周数覆盖（USER-SEM），与共同空闲页的群视图保持一致
+  const ownerOverrides = new Map(
+    (
+      await db
+        .select({
+          userId: userSemesterSettings.userId,
+          startDate: userSemesterSettings.startDate,
+          weekCount: userSemesterSettings.weekCount,
+        })
+        .from(userSemesterSettings)
+        .where(and(
+          inArray(userSemesterSettings.userId, [...new Set(memberships.map((group) => group.ownerId))]),
+          eq(userSemesterSettings.academicYear, DEFAULT_SEMESTER.academicYear),
+          eq(userSemesterSettings.semester, DEFAULT_SEMESTER.semester),
+        ))
+    ).map((row) => [row.userId, row]),
+  );
+
   return Promise.all(
     memberships.map(async (group) => {
       const members = await db
@@ -78,6 +98,9 @@ export async function listGroupsForUser(userId: string, options: { includeArchiv
       const customRows = group.scheduleId === "custom"
         ? await getUserCustomRows(group.ownerId, group.academicYear, group.semester) ?? group.customSchedule
         : null;
+      const ownerOverride = ownerOverrides.get(group.ownerId);
+      const effectiveStartDate = ownerOverride?.startDate ?? group.startDate;
+      const effectiveWeekCount = ownerOverride?.weekCount ?? group.weekCount;
 
       return {
         id: group.id,
@@ -91,8 +114,8 @@ export async function listGroupsForUser(userId: string, options: { includeArchiv
           school: group.school,
           academicYear: group.academicYear,
           semester: group.semester,
-          startDate: group.startDate,
-          weekCount: group.weekCount,
+          startDate: effectiveStartDate,
+          weekCount: effectiveWeekCount,
           timezone: group.timezone,
           scheduleId: group.scheduleId,
           schedule: scheduleFromSemester({ scheduleId: group.scheduleId, customSchedule: customRows }),
@@ -101,8 +124,8 @@ export async function listGroupsForUser(userId: string, options: { includeArchiv
             school: group.school,
             academicYear: group.academicYear,
             semester: group.semester,
-            startDate: group.startDate,
-            weekCount: group.weekCount,
+            startDate: effectiveStartDate,
+            weekCount: effectiveWeekCount,
             timezone: group.timezone,
           }),
         },
