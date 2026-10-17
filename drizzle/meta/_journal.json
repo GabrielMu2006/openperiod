@@ -92,7 +92,14 @@
       "when": 1789944000000,
       "tag": "0012_user_semester_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789950000000,
+      "tag": "0013_feedback_reply",
+      "breakpoints": true
     }
   ],
-  "latest": 12
+  "latest": 13
 }

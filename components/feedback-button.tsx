@@ -4,6 +4,65 @@ import { useEffect, useState } from "react";
 import { CheckCircle, X } from "@phosphor-icons/react";
 import { useDialogBehavior } from "@/components/dialog-behavior";
 
+type FeedbackNoticeItem = { id: string; content: string; reply: string | null; handledAt: string | null; createdAt: string };
+
+// 反馈回访（FB-02）：提交过的反馈被管理员标记「已处理」后，用户下次进站看到横幅与回复，
+// 点「知道了」写入已确认，不再显示。
+function FeedbackNotice() {
+  const [items, setItems] = useState<FeedbackNoticeItem[] | null>(null);
+  const [ackPending, setAckPending] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const response = await fetch("/api/feedback/mine", { cache: "no-store" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { items?: FeedbackNoticeItem[] };
+        if (active && body.items?.length) setItems(body.items);
+      } catch {
+        /* 回访横幅加载失败不打断页面 */
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  async function acknowledge() {
+    if (!items?.length) return;
+    setAckPending(true);
+    try {
+      await Promise.all(items.map((item) => fetch("/api/feedback/mine", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: item.id }),
+      })));
+      setItems(null);
+    } catch {
+      /* 保留横幅，下次再试 */
+    } finally {
+      setAckPending(false);
+    }
+  }
+
+  if (!items?.length) return null;
+  return (
+    <div className="feedback-notice" role="status">
+      <div className="feedback-notice-head">
+        <strong>你的反馈有了回音</strong>
+        <button type="button" className="link-button" disabled={ackPending} onClick={acknowledge}>知道了</button>
+      </div>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            <small>{item.handledAt ? `处理于 ${new Date(item.handledAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""} · 你说：「{item.content.length > 40 ? item.content.slice(0, 40) + "…" : item.content}」</small>
+            <p>{item.reply ? item.reply : "已处理，谢谢你帮助我们改进课隙。"}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 const MAX_CONTENT = 2000;
 
 // 全站反馈入口：悬浮按钮 + 弹出文本框。登录与否都能提交（匿名也可）。
@@ -65,6 +124,7 @@ export function FeedbackButton() {
       >
         反馈
       </button>
+      <FeedbackNotice />
       {open && (
         <div className="detail-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
           <section

@@ -34,6 +34,9 @@ type AdminFeedback = {
   page: string | null;
   userAgent: string | null;
   handled: boolean;
+  reply: string | null;
+  handledAt: string | null;
+  acknowledgedAt: string | null;
   createdAt: string;
   nickname: string | null;
   email: string | null;
@@ -169,20 +172,25 @@ export function AdminDashboard() {
     }
   }, [savedKey, loadSubmissions]);
 
-  const markHandled = useCallback(async (id: string, handled: boolean) => {
+  const markHandled = useCallback(async (id: string, handled: boolean, reply?: string) => {
     if (!savedKey) return;
     setFeedbackPendingId(id);
     try {
       const response = await fetch("/api/admin/feedback", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-admin-key": savedKey },
-        body: JSON.stringify({ id, handled }),
+        body: JSON.stringify({ id, handled, ...(handled ? { reply } : {}) }),
       });
       if (response.ok) {
         setFeedbackList((current) => current ? {
           ...current,
           unhandled: current.unhandled + (handled ? -1 : 1),
-          items: current.items.map((item) => item.id === id ? { ...item, handled } : item),
+          items: current.items.map((item) => item.id === id ? {
+            ...item,
+            handled,
+            reply: handled ? (reply?.trim() || null) : item.reply,
+            handledAt: handled ? new Date().toISOString() : null,
+          } : item),
         } : current);
       }
     } finally {
@@ -441,12 +449,18 @@ export function AdminDashboard() {
                       <button
                         type="button"
                         disabled={feedbackPendingId === item.id}
-                        onClick={() => void markHandled(item.id, !item.handled)}
+                        onClick={() => {
+                          if (item.handled) { void markHandled(item.id, false); return; }
+                          // 标为已处理时可附一句回复；登录提交者下次进站会看到
+                          const reply = window.prompt("回复内容（可选，登录提交者下次进站可见）：") ?? undefined;
+                          void markHandled(item.id, true, reply);
+                        }}
                       >
                         {item.handled ? "标为未处理" : "标为已处理"}
                       </button>
                     </div>
                     <p>{item.content}</p>
+                    {item.reply && <p className="feedback-admin-reply">回复：{item.reply}</p>}
                   </li>
                 ))}
               </ul>

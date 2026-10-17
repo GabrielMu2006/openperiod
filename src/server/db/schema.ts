@@ -328,6 +328,10 @@ export const feedback = pgTable(
     page: varchar("page", { length: 120 }),
     userAgent: varchar("user_agent", { length: 512 }),
     handled: boolean("handled").notNull().default(false),
+    // 回访（FB-02）：管理员处理时可附回复；提交者进站看到横幅，确认后写 acknowledged_at
+    reply: text("reply"),
+    handledAt: timestamp("handled_at", { withTimezone: true }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("feedback_created_at_idx").on(table.createdAt)],

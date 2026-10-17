@@ -15,12 +15,15 @@ export async function GET(request: Request) {
 
   try {
     const rows = await getDatabase()
-      .select({
+.select({
         id: feedback.id,
         content: feedback.content,
         page: feedback.page,
         userAgent: feedback.userAgent,
         handled: feedback.handled,
+        reply: feedback.reply,
+        handledAt: feedback.handledAt,
+        acknowledgedAt: feedback.acknowledgedAt,
         createdAt: feedback.createdAt,
         nickname: users.nickname,
         email: users.email,
@@ -37,6 +40,8 @@ export async function GET(request: Request) {
       items: rows.map((row) => ({
         ...row,
         createdAt: row.createdAt.toISOString(),
+        handledAt: row.handledAt?.toISOString() ?? null,
+        acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
       })),
     });
   } catch (error) {
@@ -49,15 +54,19 @@ export async function PATCH(request: Request) {
   if (denied) return denied;
 
   try {
-    const parsed = (await request.json().catch(() => null)) as { id?: unknown; handled?: unknown } | null;
+    const parsed = (await request.json().catch(() => null)) as { id?: unknown; handled?: unknown; reply?: unknown } | null;
     const id = typeof parsed?.id === "string" ? parsed.id : "";
     if (!id || typeof parsed?.handled !== "boolean") throw new HttpError(400, "参数无效");
+    // reply 仅在显式传入时更新（undefined = 保留原回复；空串 = 清空）
+    const replyPatch = "reply" in (parsed ?? {})
+      ? { reply: typeof parsed.reply === "string" && parsed.reply.trim() ? parsed.reply.trim().slice(0, 500) : null }
+      : {};
 
     const [row] = await getDatabase()
       .update(feedback)
-      .set({ handled: parsed.handled })
+      .set({ handled: parsed.handled, handledAt: parsed.handled ? new Date() : null, ...replyPatch })
       .where(eq(feedback.id, id))
-      .returning({ id: feedback.id, handled: feedback.handled });
+      .returning({ id: feedback.id, handled: feedback.handled, reply: feedback.reply, handledAt: feedback.handledAt });
     if (!row) throw new HttpError(404, "反馈不存在");
     return Response.json(row);
   } catch (error) {
