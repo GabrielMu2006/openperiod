@@ -4,7 +4,7 @@ import { DEFAULT_SEMESTER, getTeachingWeek } from "@/src/config/semester";
 import { PKU_SCHEDULE, getScheduleById } from "@/src/config/school-schedules";
 import type { MemberScheduleState } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
-import { busyBlocks, courses, customSchedules, semesterConfirmations, semesters } from "@/src/server/db/schema";
+import { busyBlocks, courses, customSchedules, semesterConfirmations, semesters, userSemesterSettings } from "@/src/server/db/schema";
 
 // 读路径专用：学期存在就原样返回，不存在才按默认配置创建，绝不覆盖已有配置。
 // 修改开学日/周数请走 applySemesterConfig（独立维护流程），不要在这里加更新逻辑。
@@ -142,6 +142,66 @@ export function memberSchoolKey(userScheduleId: string | null | undefined) {
   if (userScheduleId === "custom") return "custom";
   const preset = getScheduleById(userScheduleId ?? null);
   return preset.id === "pku" ? "PKU" : preset.id;
+}
+
+// 用户级学期设置（USER-SEM）：开学日/周数按用户覆盖学校学期行的默认值。
+// 起因是学生反馈各校开学时间与周数不同；覆盖只针对当前默认学年/学期，
+// 课表解析（ensureUserSemester）、导入周次校验、共同空闲换算统一读这份覆盖。
+export interface UserSemesterSetting {
+  startDate: string;
+  weekCount: number;
+}
+
+export async function getUserSemesterSetting(
+  userId: string,
+  academicYear = DEFAULT_SEMESTER.academicYear,
+  semesterName = DEFAULT_SEMESTER.semester,
+): Promise<UserSemesterSetting | null> {
+  const [row] = await getDatabase()
+    .select({ startDate: userSemesterSettings.startDate, weekCount: userSemesterSettings.weekCount })
+    .from(userSemesterSettings)
+    .where(and(
+      eq(userSemesterSettings.userId, userId),
+      eq(userSemesterSettings.academicYear, academicYear),
+      eq(userSemesterSettings.semester, semesterName),
+    ))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function setUserSemesterSetting(userId: string, patch: UserSemesterSetting) {
+  await getDatabase()
+    .insert(userSemesterSettings)
+    .values({
+      userId,
+      academicYear: DEFAULT_SEMESTER.academicYear,
+      semester: DEFAULT_SEMESTER.semester,
+      startDate: patch.startDate,
+      weekCount: patch.weekCount,
+    })
+    .onConflictDoUpdate({
+      target: [userSemesterSettings.userId, userSemesterSettings.academicYear, userSemesterSettings.semester],
+      set: { startDate: patch.startDate, weekCount: patch.weekCount, updatedAt: new Date() },
+    });
+}
+
+export async function clearUserSemesterSetting(userId: string) {
+  await getDatabase()
+    .delete(userSemesterSettings)
+    .where(and(
+      eq(userSemesterSettings.userId, userId),
+      eq(userSemesterSettings.academicYear, DEFAULT_SEMESTER.academicYear),
+      eq(userSemesterSettings.semester, DEFAULT_SEMESTER.semester),
+    ));
+}
+
+// 解析某用户「实际生效」的学期：用户覆盖优先，否则回落学校学期行；currentWeek 按覆盖开学日重算。
+export async function getEffectiveUserSemester(userId: string, scheduleId?: string | null) {
+  const base = await ensureDefaultSemester(scheduleId);
+  const override = await getUserSemesterSetting(userId, base.academicYear, base.semester);
+  if (!override) return base;
+  const merged = { ...base, startDate: override.startDate, weekCount: override.weekCount };
+  return { ...merged, currentWeek: getTeachingWeek(merged) };
 }
 
 export interface MemberScheduleSummary {

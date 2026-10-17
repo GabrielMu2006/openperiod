@@ -156,6 +156,20 @@ export const schoolSubmissions = pgTable("school_submissions", {
   check("school_submissions_status_check", sql`${table.status} in ('pending', 'approved', 'rejected', 'released')`),
 ]);
 
+// 用户级学期设置（USER-SEM）：开学日/周数按用户覆盖学校学期行的默认值。
+// 学生反馈各校开学时间与周数不同；只覆盖当前默认学年/学期，课表解析、导入校验、共同空闲换算共用。
+export const userSemesterSettings = pgTable("user_semester_settings", {
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  academicYear: varchar("academic_year", { length: 16 }).notNull(),
+  semester: varchar("semester", { length: 32 }).notNull(),
+  startDate: date("start_date", { mode: "string" }).notNull(),
+  weekCount: integer("week_count").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("user_semester_settings_user_term_unique").on(table.userId, table.academicYear, table.semester),
+  check("user_semester_settings_week_count_check", sql`${table.weekCount} between 1 and 52`),
+]);
+
 export const groups = pgTable(
   "groups",
   {

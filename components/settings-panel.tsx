@@ -7,6 +7,7 @@ import { schoolPickerEmptyFooter } from "@/components/import-upload";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { PasswordSettings } from "@/components/password-settings";
+import { SemesterSettingsForm } from "@/components/semester-settings-form";
 import type { PrivacyLevel } from "@/src/domain/schedule";
 
 interface SessionUser {
@@ -19,20 +20,13 @@ interface SessionUser {
   hasPassword: boolean;
 }
 
-interface SemesterInfo {
-  academicYear: string;
-  semester: string;
-  weekCount: number;
-  startDate: string;
-}
-
 const privacyOptions: { value: PrivacyLevel; label: string; description: string }[] = [
   { value: 0, label: "仅忙 / 闲", description: "其他成员只能看到你有空或忙碌，不显示任何课程信息。" },
   { value: 1, label: "课程名称", description: "忙碌时段向成员显示课程名称，不显示教师与地点。" },
   { value: 2, label: "完整课程", description: "忙碌时段向成员显示课程名称、地点与教师。" },
 ];
 
-export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
+export function SettingsPanel() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [nickname, setNickname] = useState("");
@@ -160,12 +154,8 @@ export function SettingsPanel({ semester }: { semester: SemesterInfo }) {
 
         <section className="settings-card" aria-labelledby="settings-semester">
           <h2 id="settings-semester">学期</h2>
-          <dl className="semester-facts">
-            <div><dt>学期</dt><dd>{semester.academicYear} {semester.semester}</dd></div>
-            <div><dt>周数</dt><dd>{semester.weekCount} 周</dd></div>
-            <div><dt>开始日期</dt><dd>{semester.startDate}</dd></div>
-          </dl>
-          <p className="settings-note">学期信息由系统统一配置，暂不支持在此修改。</p>
+          <p className="settings-note">开学日和周数默认跟随学校作息；各校校历不同，可在此按你们学校的实际校历修改（只对你自己生效）。</p>
+          <SemesterSettingsForm />
         </section>
 
         {user?.hasPassword && <PasswordSettings email={user.email} />}

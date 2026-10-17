@@ -42,7 +42,7 @@ beforeAll(async () => {
     { id: USER_A, email: "sch01-a@example.com", nickname: "自定义甲", scheduleId: "custom" },
     { id: USER_B, email: "sch01-b@example.com", nickname: "自定义乙", scheduleId: "custom" },
   ]);
-  await runMigrations(9, 9);
+  await runMigrations(9, 12);
 }, 30_000);
 
 afterAll(async () => client.close());

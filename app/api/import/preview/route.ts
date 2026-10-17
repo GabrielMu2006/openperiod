@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/src/server/auth/session";
 import { getScheduleById, toScheduleDTO, validateCustomRows, type ScheduleDTO, type SchedulePreset } from "@/src/config/school-schedules";
 import { DEFAULT_SEMESTER } from "@/src/config/semester";
 import { errorResponse, HttpError } from "@/src/server/http";
-import { ensureDefaultSemester, getUserCustomRows } from "@/src/server/semesters/data";
+import { getEffectiveUserSemester, getUserCustomRows } from "@/src/server/semesters/data";
 
 export const runtime = "nodejs";
 
@@ -61,7 +61,8 @@ export async function POST(request: Request) {
     const buffer = await file.arrayBuffer();
     const detection = await importer.detect(buffer, preset);
     if (!detection.supported) throw new HttpError(422, detection.reason);
-    const semester = await ensureDefaultSemester(preset.id);
+    // 预览按用户实际生效的学期（含开学日/周数覆盖，USER-SEM）驱动周数
+    const semester = await getEffectiveUserSemester(user.id, preset.id);
     const payload = await importer.parse(buffer, preset, semester.weekCount);
     payload.scheduleId = preset.id === "pku" ? undefined : preset.id;
     // 作息快照随预览存储/下发，前端网格无需查注册表

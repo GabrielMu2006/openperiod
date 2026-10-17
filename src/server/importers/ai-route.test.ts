@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   extractCoursesWithAi: vi.fn(),
   createImportPreview: vi.fn(),
   ensureDefaultSemester: vi.fn(),
+  getEffectiveUserSemester: vi.fn(),
   getUserCustomRows: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("@/src/server/importers/ai-quota", () => ({ consumeAiImportAttempt: mock
 vi.mock("@/src/server/imports/data", () => ({ createImportPreview: mocks.createImportPreview }));
 vi.mock("@/src/server/semesters/data", () => ({
   ensureDefaultSemester: mocks.ensureDefaultSemester,
+  getEffectiveUserSemester: mocks.getEffectiveUserSemester,
   getUserCustomRows: mocks.getUserCustomRows,
 }));
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   mocks.assertAiExtractionConfigured.mockReturnValue(undefined);
   mocks.consumeAiImportAttempt.mockResolvedValue({ limit: 10, resetAt: new Date() });
   mocks.ensureDefaultSemester.mockResolvedValue({ weekCount: 20 });
+  mocks.getEffectiveUserSemester.mockResolvedValue({ weekCount: 20, id: "uibe" });
   mocks.getUserCustomRows.mockResolvedValue(null);
   mocks.extractCoursesWithAi.mockResolvedValue({ courses: [], warnings: [] });
   mocks.createImportPreview.mockImplementation(async (_userId, payload) => ({ id: "preview-id", ...payload }));
@@ -55,7 +58,7 @@ describe("AI import schedule context", () => {
 
     expect(response.status).toBe(201);
     expect(mocks.consumeAiImportAttempt).toHaveBeenCalledWith(expect.stringMatching(/^ai-route-test-/));
-    expect(mocks.ensureDefaultSemester).toHaveBeenCalledWith("uibe");
+    expect(mocks.getEffectiveUserSemester).toHaveBeenCalledWith(expect.any(String), "uibe");
     expect(mocks.extractCoursesWithAi).toHaveBeenCalledWith(mode, Object.values(source)[0], expect.objectContaining({ id: "uibe" }), 20);
     expect(mocks.createImportPreview).toHaveBeenCalledWith(
       expect.stringMatching(/^ai-route-test-/),
@@ -98,7 +101,7 @@ describe("AI import schedule context", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: message });
-    expect(mocks.ensureDefaultSemester).not.toHaveBeenCalled();
+    expect(mocks.getEffectiveUserSemester).not.toHaveBeenCalled();
     expect(mocks.consumeAiImportAttempt).not.toHaveBeenCalled();
     expect(mocks.extractCoursesWithAi).not.toHaveBeenCalled();
     expect(mocks.createImportPreview).not.toHaveBeenCalled();
@@ -110,7 +113,7 @@ describe("AI import schedule context", () => {
     const response = await POST(request({ mode: "text", text: "课表", scheduleId: "pku" }));
 
     expect(response.status).toBe(500);
-    expect(mocks.ensureDefaultSemester).not.toHaveBeenCalled();
+    expect(mocks.getEffectiveUserSemester).not.toHaveBeenCalled();
     expect(mocks.consumeAiImportAttempt).not.toHaveBeenCalled();
     expect(mocks.extractCoursesWithAi).not.toHaveBeenCalled();
   });
@@ -123,13 +126,13 @@ describe("AI import schedule context", () => {
 
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(mocks.assertAiExtractionConfigured).not.toHaveBeenCalled();
-    expect(mocks.ensureDefaultSemester).not.toHaveBeenCalled();
+    expect(mocks.getEffectiveUserSemester).not.toHaveBeenCalled();
     expect(mocks.consumeAiImportAttempt).not.toHaveBeenCalled();
     expect(mocks.extractCoursesWithAi).not.toHaveBeenCalled();
   });
 
   it("does not consume quota when local semester preparation fails", async () => {
-    mocks.ensureDefaultSemester.mockRejectedValueOnce(new Error("database unavailable"));
+    mocks.getEffectiveUserSemester.mockRejectedValueOnce(new Error("database unavailable"));
 
     const response = await POST(request({ mode: "text", text: "课表", scheduleId: "pku" }));
 

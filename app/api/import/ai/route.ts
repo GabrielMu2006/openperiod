@@ -7,7 +7,7 @@ import { getScheduleById, toScheduleDTO, validateCustomRows, type ScheduleDTO, t
 import type { ImportCourseDraft, ImportPreviewPayload, ImportWarning } from "@/src/domain/import";
 import { errorResponse, HttpError } from "@/src/server/http";
 import { DEFAULT_SEMESTER } from "@/src/config/semester";
-import { ensureDefaultSemester, getUserCustomRows } from "@/src/server/semesters/data";
+import { getEffectiveUserSemester, getUserCustomRows } from "@/src/server/semesters/data";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -93,7 +93,8 @@ export async function POST(request: Request) {
     }
 
     assertAiExtractionConfigured();
-    const semester = await ensureDefaultSemester(preset.id);
+    // 预览按用户实际生效的学期（含开学日/周数覆盖，USER-SEM）驱动周数
+    const semester = await getEffectiveUserSemester(user.id, preset.id);
     await consumeAiImportAttempt(user.id);
     const { courses, warnings } = await extractCoursesWithAi(mode, content, preset, semester.weekCount);
     return Response.json({ preview: await buildPreview(user.id, preset, semester.weekCount, courses, warnings, customRows) }, { status: 201 });

@@ -14,10 +14,11 @@ import {
   groups,
   semesterConfirmations,
   semesters,
+  userSemesterSettings,
   users,
 } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
-import { getUserCustomRows, memberSchoolKey } from "@/src/server/semesters/data";
+import { getUserCustomRows, getUserSemesterSetting, memberSchoolKey } from "@/src/server/semesters/data";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -200,9 +201,13 @@ async function loadAuthorizedGroupSchedule(
 
   if (!membership) throw new HttpError(404, "群组不存在或你不是群组成员");
   if (membership.archivedAt) throw new HttpError(410, "群组已归档，请先在群组页恢复");
+  // 群组学期视图跟随群主的开学日/周数覆盖（USER-SEM），否则用学校学期行默认值
+  const ownerOverride = await getUserSemesterSetting(membership.ownerId, membership.groupAcademicYear, membership.groupSemester);
+  const groupStartDate = ownerOverride?.startDate ?? membership.groupStartDate;
+  const groupWeekCount = ownerOverride?.weekCount ?? membership.groupWeekCount;
   // 查看周由群组学期的实际周数驱动（SCH-02）
-  if (viewWeek > membership.groupWeekCount) {
-    throw new HttpError(400, `教学周超出本学期范围（1–${membership.groupWeekCount} 周）`);
+  if (viewWeek > groupWeekCount) {
+    throw new HttpError(400, `教学周超出本学期范围（1–${groupWeekCount} 周）`);
   }
   // 自定义群组的网格跟随群主自己的作息（SCH-01）；历史共享列仅作兜底
   const groupCustomRows = membership.groupScheduleId === "custom"
@@ -224,6 +229,24 @@ async function loadAuthorizedGroupSchedule(
     .from(groupMembers)
     .innerJoin(users, eq(groupMembers.userId, users.id))
     .where(and(eq(groupMembers.groupId, groupId), inArray(groupMembers.userId, selectedUserIds)));
+
+  // 成员各自的开学日/周数覆盖（USER-SEM）：跨校对齐时每位成员按自己的教学历换算
+  const memberOverrides = new Map(
+    (
+      await db
+        .select({
+          userId: userSemesterSettings.userId,
+          startDate: userSemesterSettings.startDate,
+          weekCount: userSemesterSettings.weekCount,
+        })
+        .from(userSemesterSettings)
+        .where(and(
+          inArray(userSemesterSettings.userId, memberRows.map((member) => member.id)),
+          eq(userSemesterSettings.academicYear, membership.groupAcademicYear),
+          eq(userSemesterSettings.semester, membership.groupSemester),
+        ))
+    ).map((row) => [row.userId, row]),
+  );
 
   if (memberRows.length !== new Set(selectedUserIds).size) {
     throw new HttpError(400, "所选成员不属于当前群组");
@@ -323,11 +346,12 @@ async function loadAuthorizedGroupSchedule(
         else skipsByMeeting.set(exception.courseMeetingId, new Set([exception.week]));
       }
 
+      const memberOverride = memberOverrides.get(member.id);
       const built = buildMemberRanges({
         memberSchedule: memberSchedule,
-        memberStartDate: memberSemester.startDate,
-        memberWeekCount: memberSemester.weekCount,
-        groupStartDate: membership.groupStartDate,
+        memberStartDate: memberOverride?.startDate ?? memberSemester.startDate,
+        memberWeekCount: memberOverride?.weekCount ?? memberSemester.weekCount,
+        groupStartDate,
         viewWeek,
         meetings: meetingRows.map((meeting) => {
           const course = courseById.get(meeting.courseId);

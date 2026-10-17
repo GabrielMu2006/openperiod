@@ -6,7 +6,7 @@ import type { Weekday } from "@/src/domain/schedule";
 import { getDatabase } from "@/src/server/db";
 import { courseExceptions, courseMeetings, courses, customSchedules, importPreviews, importSnapshots, semesters, users } from "@/src/server/db/schema";
 import { HttpError } from "@/src/server/http";
-import { ensureDefaultSemester } from "@/src/server/semesters/data";
+import { getEffectiveUserSemester, getUserSemesterSetting } from "@/src/server/semesters/data";
 
 const weekdayNumber: Record<Weekday, number> = {
   monday: 1, tuesday: 2, wednesday: 3, thursday: 4,
@@ -14,7 +14,8 @@ const weekdayNumber: Record<Weekday, number> = {
 };
 
 export async function createImportPreview(userId: string, payload: ImportPreviewPayload, scheduleId?: string | null) {
-  const semester = await ensureDefaultSemester(scheduleId);
+  // 预览按用户实际生效的学期（含开学日/周数覆盖，USER-SEM）驱动周数与目标学期
+  const semester = await getEffectiveUserSemester(userId, scheduleId);
   const normalizedPayload = {
     ...payload,
     weekCount: semester.weekCount,
@@ -46,6 +47,8 @@ export async function getImportPreview(userId: string, previewId: string) {
 
 export async function confirmImport(userId: string, previewId: string, drafts: ImportCourseDraft[]) {
   const db = getDatabase();
+  // 用户周数覆盖在事务外读取（学年/学期恒为默认值；事务内再走全局客户端会与 PGlite 事务锁死锁）
+  const userOverride = await getUserSemesterSetting(userId);
 
   const { snapshotId, targetScheduleId } = await db.transaction(async (tx) => {
     const [preview] = await tx
@@ -60,11 +63,12 @@ export async function confirmImport(userId: string, previewId: string, drafts: I
       .limit(1);
     if (!previewSemester) throw new Error("Import preview semester does not exist");
     const targetScheduleId = previewSemester.scheduleId ?? "pku";
-    // 导入周次由目标学期的实际周数驱动（SCH-02）
+    // 导入周次由目标学期的实际周数驱动（SCH-02）；用户自己的开学日/周数覆盖优先（USER-SEM）
+    const effectiveWeekCount = userOverride?.weekCount ?? previewSemester.weekCount;
     for (const draft of drafts) {
       for (const meeting of draft.meetings) {
-        if (meeting.weeks.some((week) => week < 1 || week > previewSemester.weekCount)) {
-          throw new HttpError(400, `周次超出本学期范围（1–${previewSemester.weekCount} 周）`);
+        if (meeting.weeks.some((week) => week < 1 || week > effectiveWeekCount)) {
+          throw new HttpError(400, `周次超出本学期范围（1–${effectiveWeekCount} 周）`);
         }
       }
     }
